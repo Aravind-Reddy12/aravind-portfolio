@@ -3,6 +3,7 @@ import { useCanvas } from '../hooks/useCanvas';
 import { world, notifySubscribers } from '../engine/WorldState';
 import { init as initInput } from '../engine/InputDriver';
 import { checkWrap } from '../engine/LoopManager';
+import { drawSky } from './layers/sky';
 import { drawRoad } from './layers/road';
 import { lerp } from '../utils/math';
 import { WORLD_WIDTH } from '../constants';
@@ -54,9 +55,8 @@ export default function WorldCanvas() {
       // Clear
       ctx.clearRect(0, 0, width, height);
 
-      // Sky placeholder (top 70%)
-      ctx.fillStyle = '#1a1625';
-      ctx.fillRect(0, 0, width, height);
+      // Sky layer (backmost)
+      drawSky(ctx, width, height, world.dayNightT);
 
       // Road layer
       drawRoad(ctx, width, height, world.worldOffset);

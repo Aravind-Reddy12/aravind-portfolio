@@ -1,3 +1,5 @@
+import { drawSky } from './layers/sky';
+
 let skyBuffer = null;
 let skyCtx    = null;
 let lastSkyT  = -1;
@@ -29,18 +31,20 @@ export function resize(width, height) {
   lastSkyT = -1; // force redraw on next frame
 }
 
-export function getSkyBuffer(width, height, palette, dayNightT, theme) {
+export function getSkyBuffer(width, height, dayNightT) {
   if (!skyBuffer) init(width, height);
 
+  // Stars twinkle — never cache when they're visible (bypass threshold)
+  const starsVisible = dayNightT > 0.75;
   if (
-    Math.abs(dayNightT - lastSkyT) < 0.005 &&
-    theme.id === lastTheme
+    !starsVisible &&
+    Math.abs(dayNightT - lastSkyT) < 0.005
   ) return skyBuffer;
 
   // Reuse existing buffer — just clear and redraw
   skyCtx.clearRect(0, 0, width, height);
-  theme.drawBackground(skyCtx, palette, dayNightT, 0);
+  drawSky(skyCtx, width, height, dayNightT);
   lastSkyT  = dayNightT;
-  lastTheme = theme.id;
+  lastTheme = null; // unused until theme system is wired
   return skyBuffer;
 }
