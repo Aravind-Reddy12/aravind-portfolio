@@ -1,5 +1,6 @@
 import { world, notifySubscribers } from './WorldState';
 import { WORLD_WIDTH } from '../constants';
+import { reset as resetWeather } from './WeatherSystem';
 
 let prevOffset = 0;
 
@@ -12,5 +13,6 @@ export function checkWrap(worldOffset) {
 
 function onWrap() {
   world.lap++;
+  resetWeather();
   notifySubscribers();
 }

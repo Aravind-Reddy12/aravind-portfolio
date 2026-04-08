@@ -9,6 +9,8 @@ import { drawMidground } from './layers/midground';
 import { drawRoad } from './layers/road';
 import { drawBuildings, hitTestBuildings } from './layers/buildings';
 import { cyclist } from './cyclist';
+import { drawWeather } from './layers/weather';
+import { resolveWeather } from '../engine/WeatherSystem';
 import { lerp } from '../utils/math';
 import { WORLD_WIDTH } from '../constants';
 
@@ -99,6 +101,9 @@ export default function WorldCanvas() {
       // Wrap detection + lap counter
       checkWrap(world.worldOffset);
 
+      // Weather blending
+      resolveWeather(world.worldOffset);
+
       // Notify React subscribers
       notifySubscribers();
 
@@ -122,6 +127,9 @@ export default function WorldCanvas() {
 
       // Cyclist (fixed screen X, on the road, in front of buildings)
       cyclist.draw(ctx, world, width, height);
+
+      // Weather particles + lightning + fog (frontmost layer)
+      drawWeather(ctx, width, height, world.weather, world.worldSpeed, dt / 1000);
 
       rafId = requestAnimationFrame(frame);
     }
