@@ -4,6 +4,8 @@ import { world, notifySubscribers } from '../engine/WorldState';
 import { init as initInput } from '../engine/InputDriver';
 import { checkWrap } from '../engine/LoopManager';
 import { drawSky } from './layers/sky';
+import { drawBackground } from './layers/background';
+import { drawMidground } from './layers/midground';
 import { drawRoad } from './layers/road';
 import { lerp } from '../utils/math';
 import { WORLD_WIDTH } from '../constants';
@@ -58,7 +60,13 @@ export default function WorldCanvas() {
       // Sky layer (backmost)
       drawSky(ctx, width, height, world.dayNightT);
 
-      // Road layer
+      // Far background — mountains + clouds (0.2× parallax)
+      drawBackground(ctx, width, height, world.worldOffset, world.dayNightT);
+
+      // Mid background — hills + trees (0.5× parallax)
+      drawMidground(ctx, width, height, world.worldOffset, world.dayNightT);
+
+      // Road layer (1.0× parallax)
       drawRoad(ctx, width, height, world.worldOffset);
 
       rafId = requestAnimationFrame(frame);
