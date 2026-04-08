@@ -10,6 +10,7 @@ import { drawRoad } from './layers/road';
 import { drawBuildings, hitTestBuildings } from './layers/buildings';
 import { cyclist } from './cyclist';
 import { drawWeather } from './layers/weather';
+import { drawForeground } from './layers/foreground';
 import { resolveWeather } from '../engine/WeatherSystem';
 import { lerp } from '../utils/math';
 import { WORLD_WIDTH } from '../constants';
@@ -128,8 +129,11 @@ export default function WorldCanvas() {
       // Cyclist (fixed screen X, on the road, in front of buildings)
       cyclist.draw(ctx, world, width, height);
 
-      // Weather particles + lightning + fog (frontmost layer)
+      // Weather particles + lightning + fog
       drawWeather(ctx, width, height, world.weather, world.worldSpeed, dt / 1000);
+
+      // Foreground — speed lines, dust, debris (1.2× parallax), vignette (frontmost)
+      drawForeground(ctx, width, height, world.worldSpeed, world.worldOffset, world.weather);
 
       rafId = requestAnimationFrame(frame);
     }

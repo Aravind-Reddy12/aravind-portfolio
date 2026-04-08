@@ -47,7 +47,7 @@ export function drawWeather(ctx, width, height, weather, worldSpeed, dt) {
   if (weather.lightningActive) {
     // 1% chance per frame to trigger a new flash
     if (flashDuration <= 0 && Math.random() < 0.01) {
-      flashAlpha    = 0.35;
+      flashAlpha    = 0.12;
       flashDuration = 0.12; // seconds
     }
   }
