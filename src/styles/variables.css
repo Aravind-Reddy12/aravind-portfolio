@@ -1,0 +1,28 @@
+:root {
+  --color-bg:          #1a1625;
+  --color-surface:     #2a2035;
+  --color-text:        #e8d5b7;
+  --color-text-muted:  #8a7a6a;
+  --color-accent:      #f4a261;
+  --color-accent-glow: rgba(244, 162, 97, 0.2);
+
+  --font-display:      'Space Grotesk', sans-serif;
+  --font-body:         'DM Sans', sans-serif;
+  --font-mono:         'JetBrains Mono', monospace;
+
+  --ease-out-expo:     cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out-cubic: cubic-bezier(0.65, 0, 0.35, 1);
+  --duration-fast:     200ms;
+  --duration-normal:   500ms;
+  --duration-slow:     1000ms;
+
+  --max-width: 900px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast:   0ms;
+    --duration-normal: 0ms;
+    --duration-slow:   0ms;
+  }
+}

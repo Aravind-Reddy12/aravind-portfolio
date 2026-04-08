@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm create:*)",
+      "Bash(printf 'y\\\\n')",
+      "Bash(npx create-vite@latest . --template react)",
+      "Bash(npx create-vite@latest . --template react --overwrite)",
+      "Bash(mkdir -p src/engine src/canvas/layers src/canvas/themes src/components src/hooks src/data src/utils src/styles src/constants)",
+      "Bash(touch src/engine/.gitkeep src/canvas/layers/.gitkeep src/canvas/themes/.gitkeep src/components/.gitkeep src/hooks/.gitkeep src/data/.gitkeep src/utils/.gitkeep)",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)"
+    ]
+  }
+}
