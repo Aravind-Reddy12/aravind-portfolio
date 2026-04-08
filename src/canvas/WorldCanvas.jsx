@@ -2,6 +2,8 @@ import { useEffect, useRef } from 'react';
 import { useCanvas } from '../hooks/useCanvas';
 import { world, notifySubscribers } from '../engine/WorldState';
 import { init as initInput } from '../engine/InputDriver';
+import { checkWrap } from '../engine/LoopManager';
+import { drawRoad } from './layers/road';
 import { lerp } from '../utils/math';
 import { WORLD_WIDTH } from '../constants';
 
@@ -43,6 +45,9 @@ export default function WorldCanvas() {
       world.worldOffset  = ((world.worldOffset % WORLD_WIDTH) + WORLD_WIDTH) % WORLD_WIDTH;
       world.dayNightT    = world.worldOffset / WORLD_WIDTH;
 
+      // Wrap detection + lap counter
+      checkWrap(world.worldOffset);
+
       // Notify React subscribers
       notifySubscribers();
 
@@ -53,9 +58,8 @@ export default function WorldCanvas() {
       ctx.fillStyle = '#1a1625';
       ctx.fillRect(0, 0, width, height);
 
-      // Ground placeholder (bottom 30%)
-      ctx.fillStyle = '#2a2035';
-      ctx.fillRect(0, height * 0.7, width, height * 0.3);
+      // Road layer
+      drawRoad(ctx, width, height, world.worldOffset);
 
       rafId = requestAnimationFrame(frame);
     }
