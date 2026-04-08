@@ -7,6 +7,7 @@ import { drawSky } from './layers/sky';
 import { drawBackground } from './layers/background';
 import { drawMidground } from './layers/midground';
 import { drawRoad } from './layers/road';
+import { cyclist } from './cyclist';
 import { lerp } from '../utils/math';
 import { WORLD_WIDTH } from '../constants';
 
@@ -14,11 +15,11 @@ export default function WorldCanvas() {
   const canvasRef = useRef(null);
   const { ctx, width, height } = useCanvas(canvasRef);
 
-  // Wire up input
+  // Wire up input — return cleanup so StrictMode double-mount doesn't stack listeners
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    initInput(canvas);
+    return initInput(canvas);
   }, []);
 
   // Master rAF loop
@@ -68,6 +69,9 @@ export default function WorldCanvas() {
 
       // Road layer (1.0× parallax)
       drawRoad(ctx, width, height, world.worldOffset);
+
+      // Cyclist (fixed screen X, on the road)
+      cyclist.draw(ctx, world, width, height);
 
       rafId = requestAnimationFrame(frame);
     }
