@@ -1,4 +1,4 @@
-# The Ride of Aravind — Architecture Document (v3, definitive)
+# The Ride of Aravind — Architecture Document (v4, production)
 
 ## Vision
 
@@ -16,7 +16,7 @@ An interactive, canvas-driven cycling portfolio where the visitor inhabits a **l
 | Language           | JavaScript (JSX)              | No TypeScript overhead for a portfolio                    |
 | World rendering    | HTML5 Canvas API (raw)        | Full control over the looping world, cyclist, weather     |
 | UI overlays        | React + CSS Modules           | Modals, content panels sit above the canvas               |
-| Input engine       | Wheel + pointer drag events   | Scroll/drag delta → world speed → cyclist pedal speed     |
+| Input engine       | Pointer Events API            | Unified mouse + touch + pen; wheel for desktop scroll     |
 | Styling            | CSS Modules + CSS variables   | Scoped styles, per-theme design tokens                    |
 | Fonts              | Google Fonts (self-hosted)    | Per-theme font pairings (see Section 8)                   |
 | Deployment         | GitHub Pages via `gh-pages`   | Free, static SPA, fits a portfolio                        |
@@ -41,7 +41,7 @@ aravind-portfolio/
 │   │
 │   ├── engine/
 │   │   ├── WorldState.js               # Central mutable state atom (NOT React state)
-│   │   ├── InputDriver.js              # Wheel + drag events → worldSpeed writes
+│   │   ├── InputDriver.js              # Pointer + wheel + touch → worldSpeed writes
 │   │   ├── ThemeEngine.js              # 4 themes + transitionIn interpolation
 │   │   ├── WeatherSystem.js            # Per-zone weather rules + blend logic
 │   │   ├── DayNightCycle.js            # WorldOffset-mapped sky palette + sun/moon arc
@@ -77,6 +77,9 @@ aravind-portfolio/
 │   │   │   ├── Projects.jsx
 │   │   │   ├── Hobbies.jsx
 │   │   │   └── Contact.jsx
+│   │   ├── OnboardingHint/
+│   │   │   ├── index.jsx               # "Scroll or drag to ride" prompt
+│   │   │   └── OnboardingHint.module.css
 │   │   ├── StyleHUD/
 │   │   │   ├── index.jsx               # Subtle corner display — current theme + lap counter
 │   │   │   └── StyleHUD.module.css
@@ -99,11 +102,12 @@ aravind-portfolio/
 │   │
 │   ├── utils/
 │   │   ├── math.js                     # lerp, clamp, mapRange, smoothstep, easeInOutCubic
+│   │   ├── world.js                    # wrappedDist, worldToScreen, isOnScreen
 │   │   ├── colors.js                   # lerpColor, palette helpers, alpha
 │   │   └── canvas.js                   # drawRoundedRect, drawGlow, clearCanvas
 │   │
 │   ├── styles/
-│   │   ├── global.css                  # Reset, font-face, body
+│   │   ├── global.css                  # Reset, font-face, body, touch-action
 │   │   └── variables.css               # Base design tokens (overridden per theme at runtime)
 │   │
 │   └── constants/
@@ -139,23 +143,55 @@ World space (loops):
 | Layer | File | Parallax |
 |---|---|---|
 | Sky | `layers/sky.js` | fixed (no parallax) |
-| Far background | `layers/background.js` | 0.2x worldOffset |
-| Mid background | `layers/midground.js` | 0.5x worldOffset |
-| Road surface | `layers/road.js` | 1.0x worldOffset |
-| Buildings | `layers/buildings.js` | 1.0x worldOffset |
-| Toggle object | `layers/toggleObject.js` | 1.0x worldOffset |
+| Far background | `layers/background.js` | 0.2× worldOffset |
+| Mid background | `layers/midground.js` | 0.5× worldOffset |
+| Road surface | `layers/road.js` | 1.0× worldOffset |
+| Buildings | `layers/buildings.js` | 1.0× worldOffset |
+| Toggle object | `layers/toggleObject.js` | 1.0× worldOffset |
 | Cyclist | `cyclist.js` | fixed screen X |
 | Weather | `layers/weather.js` | fullscreen |
-| Foreground debris | `layers/foreground.js` | 1.2x worldOffset |
+| Foreground debris | `layers/foreground.js` | 1.2× worldOffset |
 
-### 3.2 Input → Speed Pipeline
+### 3.2 Wrapping-Aware Math (`utils/world.js`)
 
-The world does **not scroll via the page scrollbar**. Input events are intercepted and converted to `worldSpeed`.
+All distance and position calculations across the codebase **must** account for the world loop. A utility module provides the canonical functions:
+
+```js
+// utils/world.js
+import { WORLD_WIDTH } from '../constants';
+
+/** Shortest distance between two world-X positions, accounting for wrap. */
+export function wrappedDist(a, b) {
+  const raw = Math.abs(a - b);
+  return Math.min(raw, WORLD_WIDTH - raw);
+}
+
+/** Convert a world-X to screen-X given the current worldOffset and viewport width. */
+export function worldToScreen(worldX, worldOffset, viewportW) {
+  let sx = worldX - worldOffset;
+  if (sx < -WORLD_WIDTH / 2) sx += WORLD_WIDTH;
+  if (sx >  WORLD_WIDTH / 2) sx -= WORLD_WIDTH;
+  return sx;
+}
+
+/** Returns true if a world-X AABB is visible on screen (partially or fully). */
+export function isOnScreen(worldX, objWidth, worldOffset, viewportW) {
+  const sx = worldToScreen(worldX, worldOffset, viewportW);
+  return sx + objWidth > 0 && sx < viewportW;
+}
+```
+
+Every system that computes distance or visibility — WeatherSystem, building hit detection, building rendering, toggle object proximity — uses these functions. No raw `Math.abs(a - b)` on world positions.
+
+### 3.3 Input → Speed Pipeline
+
+The world does **not scroll via the page scrollbar**. Input events are intercepted and converted to `worldSpeed`. The canvas element has `touch-action: none` (set in CSS) to prevent browser scroll/zoom interference on mobile.
 
 ```
-Wheel event (deltaY)   ──┐
-Pointer drag (dx/frame) ──┤─→ InputDriver.js → targetSpeed → lerp → worldSpeed
-Touch swipe (dx/frame)  ──┘
+Wheel event (deltaY)       ──┐
+Pointer drag (dx/frame)    ──┤─→ InputDriver.js → targetSpeed → lerp → worldSpeed
+                             ──┘
+  (Pointer Events API handles mouse, touch, and pen uniformly)
 
 worldSpeed is smoothed (EMA, α=0.12):
   currentSpeed = lerp(currentSpeed, targetSpeed, 0.12)  // per frame
@@ -175,12 +211,12 @@ worldOffset advances:
 | Reverse | < 0 | Looks back over shoulder | World rewinds |
 | Braking | lerping → 0 | Weight shifts back | Skid dust particles |
 
-### 3.3 Landmark Buildings
+### 3.4 Landmark Buildings
 
-Each building is a **clickable world object** drawn on canvas. Hit detection uses world-space AABB against `worldOffset`.
+Each building is a **clickable world object** drawn on canvas. Hit detection uses wrapping-aware AABB (see §3.2).
 
 **Interaction flow:**
-1. Visitor clicks a building (canvas `click` → world-space hit test)
+1. Visitor clicks a building (canvas `click` → `worldToScreen` → wrapping-aware AABB hit test)
 2. `worldSpeed` lerps to 0 (cyclist brakes)
 3. Cyclist hops-off animation plays (~800ms)
 4. Building door opens / lights up
@@ -191,13 +227,47 @@ Each building is a **clickable world object** drawn on canvas. Hit detection use
 
 ```js
 export const BUILDINGS = [
-  { id: 'education',  worldX: 600,  width: 200, section: 'Education'  },
-  { id: 'experience', worldX: 1800, width: 220, section: 'Experience' },
-  { id: 'projects',   worldX: 2800, width: 240, section: 'Projects'   },
-  { id: 'hobbies',    worldX: 3800, width: 180, section: 'Hobbies'    },
-  { id: 'contact',    worldX: 4800, width: 160, section: 'Contact'    },
-  { id: 'toggle',     worldX: 5400, width: 120, section: null         },
+  { id: 'education',  worldX: 600,  width: 200, height: 180, section: 'Education'  },
+  { id: 'experience', worldX: 1800, width: 220, height: 200, section: 'Experience' },
+  { id: 'projects',   worldX: 2800, width: 240, height: 220, section: 'Projects'   },
+  { id: 'hobbies',    worldX: 3800, width: 180, height: 160, section: 'Hobbies'    },
+  { id: 'contact',    worldX: 4800, width: 160, height: 150, section: 'Contact'    },
+  { id: 'toggle',     worldX: 5400, width: 120, height: 140, section: null          },
 ];
+```
+
+**Hit detection (wrapping-aware):**
+
+```js
+function hitTestBuildings(clickScreenX, clickScreenY, worldOffset, viewportW) {
+  for (const b of BUILDINGS) {
+    const sx = worldToScreen(b.worldX, worldOffset, viewportW);
+    const roadY = /* road surface Y */;
+    if (
+      clickScreenX >= sx && clickScreenX <= sx + b.width &&
+      clickScreenY >= roadY - b.height && clickScreenY <= roadY
+    ) return b;
+  }
+  return null;
+}
+```
+
+### 3.5 Canvas Cursor States
+
+The canvas cursor changes based on what the pointer is hovering over, giving the visitor clear interaction feedback:
+
+| Hover target | Cursor | Feedback |
+|---|---|---|
+| Empty road / sky | `grab` (idle), `grabbing` (dragging) | "You can drag to move" |
+| Building (clickable) | `pointer` | Building glows / pulses subtly |
+| Toggle object | `pointer` | Toggle object bounces / highlights |
+| Modal is open | `default` | Canvas input is paused |
+
+```js
+// In the pointermove handler, after world-space conversion:
+const hovered = hitTestBuildings(e.offsetX, e.offsetY, world.worldOffset, width);
+canvas.style.cursor = hovered ? 'pointer' : (isDragging ? 'grabbing' : 'grab');
+world.hoveredBuilding = hovered ? hovered.id : null; // used by buildings.js for glow effect
 ```
 
 ---
@@ -215,8 +285,6 @@ export const lofiTheme = {
   label: 'Lo-fi',
 
   palette: {
-    skyDay:        ['#f4a261', '#e9c46a'],
-    skyNight:      ['#1a1625', '#2d2040'],
     ground:        '#2a2035',
     road:          '#1e1a2e',
     roadLine:      '#f4a261',
@@ -238,20 +306,24 @@ export const lofiTheme = {
     '--font-body':    "'DM Sans', sans-serif",
   },
 
-  // Canvas draw overrides — called by WorldCanvas per frame
+  // Canvas draw overrides — called by WorldCanvas per frame.
+  // Sky colors come from DayNightCycle (the single source of truth for sky gradients).
+  // Each theme renders the sky palette in its own visual language.
   drawBackground:   (ctx, skyPalette, dayNightT, worldOffset) => { },
   drawRoad:         (ctx, worldOffset) => { },
-  drawBuilding:     (ctx, building, screenX, dayNightT) => { },
+  drawBuilding:     (ctx, building, screenX, dayNightT, isHovered) => { },
   drawCyclist:      (ctx, state) => { },
   drawWeather:      (ctx, weatherState, dt) => { },
   drawToggleObject: (ctx, screenX, interactionState) => { },
 
   // Entrance transition — called by WorldCanvas when switching TO this theme.
-  // progress: 0→1, runs over ~60 frames (~1 second at 60fps).
+  // progress: 0→1, runs over ~1 second (dt-scaled, not frame-count-dependent).
   // The OUTGOING theme has no exit handler. The incoming world announces itself.
-  transitionIn: (ctx, progress) => { /* warm orange fade + tape-hiss */ },
+  transitionIn: (ctx, progress) => { /* warm orange fade */ },
 };
 ```
+
+**Sky color ownership:** `DayNightCycle` is the **single source of truth** for sky gradients. It produces a `{ top, bottom }` palette from `dayNightT`. Each theme's `drawBackground` receives this palette and renders it in its own visual language — gradient fill (Lo-fi), pixel blocks (Pixel), watercolour wash (Storybook), or grid overlay (Blueprint). Themes do **not** store their own sky colors. This prevents conflicts and ensures the day/night arc is consistent across theme switches.
 
 **`transitionIn` ownership rule:** each theme owns its *entrance*, never its exit. `WorldCanvas` calls `nextTheme.transitionIn(ctx, progress)` during the transition window. The outgoing theme is never consulted.
 
@@ -336,11 +408,13 @@ export const world = {
 
   // Active building
   activeBuilding:   null,      // building id string or null
+  hoveredBuilding:  null,      // building id string or null (for glow effect)
   modalOpen:        false,
 
   // Theme
   theme:            'lofi',    // 'lofi' | 'pixel' | 'storybook' | 'blueprint'
   themeTransitionT: 1.0,       // 1.0 = complete, 0.0 = just started
+  toggleInteractState: 'idle', // 'idle' | 'nearby' | 'active'
 
   // Weather
   weather: {
@@ -356,6 +430,9 @@ export const world = {
 
   // Loop
   lap:              1,
+
+  // Onboarding
+  hasInteracted:    false,     // true after first wheel/drag input
 
   // Performance
   dt:               16.67,
@@ -379,26 +456,67 @@ export function useWorldState(selector) {
 
 ### 5.2 InputDriver — Events → WorldSpeed
 
+Uses the **Pointer Events API** for unified mouse/touch/pen handling. The `wheel` event handles desktop scroll input separately.
+
+**Critical design:** drag tracking uses `lastPointerX` (updated every move event), not a fixed `startX`. This gives correct per-frame deltas instead of unbounded cumulative offsets.
+
 ```js
 // engine/InputDriver.js
-window.addEventListener('wheel', (e) => {
-  e.preventDefault();
-  world.targetSpeed = clamp(world.targetSpeed + e.deltaY * 0.01, -1, 1);
-}, { passive: false });
+import { world } from './WorldState';
+import { clamp } from '../utils/math';
 
-// Pointer drag
-let dragStartX = null;
-canvas.addEventListener('pointerdown', (e) => { dragStartX = e.clientX; });
-canvas.addEventListener('pointermove', (e) => {
-  if (dragStartX === null) return;
-  const dx = e.clientX - dragStartX;
-  world.targetSpeed = clamp(dx * 0.005, -1, 1);
-});
-canvas.addEventListener('pointerup', () => {
-  dragStartX = null;
-  world.targetSpeed = 0; // release → decelerate
-});
+let lastPointerX = null;
+let isDragging   = false;
+
+export function init(canvas) {
+  // — Wheel (desktop) —
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    world.targetSpeed = clamp(world.targetSpeed + e.deltaY * 0.01, -1, 1);
+    world.hasInteracted = true;
+  }, { passive: false });
+
+  // — Pointer drag (mouse + touch + pen via Pointer Events API) —
+  canvas.addEventListener('pointerdown', (e) => {
+    canvas.setPointerCapture(e.pointerId);
+    lastPointerX = e.clientX;
+    isDragging = true;
+  });
+
+  canvas.addEventListener('pointermove', (e) => {
+    if (!isDragging || lastPointerX === null) return;
+    const dx = e.clientX - lastPointerX;
+    lastPointerX = e.clientX;                    // ← update every frame, not just on start
+    world.targetSpeed = clamp(-dx * 0.008, -1, 1); // negative: drag right → move forward
+    world.hasInteracted = true;
+  });
+
+  canvas.addEventListener('pointerup', (e) => {
+    canvas.releasePointerCapture(e.pointerId);
+    lastPointerX = null;
+    isDragging = false;
+    world.targetSpeed = 0; // release → decelerate to idle
+  });
+
+  canvas.addEventListener('pointercancel', (e) => {
+    canvas.releasePointerCapture(e.pointerId);
+    lastPointerX = null;
+    isDragging = false;
+    world.targetSpeed = 0;
+  });
+}
 ```
+
+**CSS requirement** (in `global.css`):
+```css
+canvas {
+  touch-action: none;    /* Prevent browser scroll/zoom on touch devices */
+  -webkit-user-select: none;
+  user-select: none;
+}
+```
+
+**Why Pointer Events, not Touch Events?** Pointer Events unify mouse, touch, and pen into one API. `setPointerCapture` ensures we keep receiving events even if the pointer leaves the canvas during a drag. This eliminates the need for separate `touchstart`/`touchmove`/`touchend` handlers and handles all devices with one code path.
 
 Per rAF frame (in `WorldCanvas.js`):
 ```js
@@ -410,12 +528,23 @@ world.dayNightT    = world.worldOffset / WORLD_WIDTH;
 
 ### 5.3 ThemeEngine
 
+Transition timing is **dt-scaled** so the transition always takes ~1 second regardless of frame rate.
+
 ```js
 // engine/ThemeEngine.js
-let fromTheme    = THEMES.lofi;
-let toTheme      = THEMES.lofi;
+import { world } from './WorldState';
+import { easeInOutCubic } from '../utils/math';
+import { lerpColor } from '../utils/colors';
+
+let fromTheme    = null; // set on init
+let toTheme      = null;
 let transitionT  = 1.0;
-const SPEED      = 1 / 60; // ~1 second transition
+const DURATION_S = 1.0;  // transition duration in seconds
+
+export function init(defaultTheme) {
+  fromTheme = defaultTheme;
+  toTheme   = defaultTheme;
+}
 
 export function setTheme(themeId) {
   fromTheme   = getInterpolatedTheme(); // snapshot colors mid-transition
@@ -430,7 +559,7 @@ export function setTheme(themeId) {
 
 export function tick(dt) {
   if (transitionT >= 1.0) return;
-  transitionT = Math.min(1.0, transitionT + SPEED);
+  transitionT = Math.min(1.0, transitionT + dt / DURATION_S); // ← dt-scaled
   world.themeTransitionT = transitionT;
   syncCSSVariables(getInterpolatedTheme());
 }
@@ -441,12 +570,23 @@ export function getInterpolatedTheme() {
   return interpolatePalettes(fromTheme.palette, toTheme.palette, t);
 }
 
+function interpolatePalettes(from, to, t) {
+  const result = {};
+  for (const key of Object.keys(from)) {
+    result[key] = lerpColor(from[key], to[key], t);
+  }
+  return result;
+}
+
 function syncCSSVariables(palette) {
   const r = document.documentElement;
-  r.style.setProperty('--color-bg',      palette.bg);
-  r.style.setProperty('--color-accent',  palette.accent);
-  r.style.setProperty('--color-text',    palette.text);
-  // ... all design tokens sync in lockstep with canvas
+  r.style.setProperty('--color-bg',         palette.bg);
+  r.style.setProperty('--color-surface',    palette.surface);
+  r.style.setProperty('--color-accent',     palette.accent);
+  r.style.setProperty('--color-text',       palette.text);
+  r.style.setProperty('--color-text-muted', palette.textMuted);
+  r.style.setProperty('--color-accent-glow',
+    palette.accent.replace(')', ', 0.2)').replace('rgb', 'rgba'));
 }
 ```
 
@@ -462,17 +602,19 @@ The outgoing theme is never consulted.
 
 ### 5.4 WeatherSystem
 
-Weather zones are defined by proximity to building X positions. As `worldOffset` approaches a building, weather blends toward that zone's config.
+Weather zones are defined by proximity to building X positions. As `worldOffset` approaches a building, weather blends toward that zone's config. **All distance calculations use `wrappedDist`** (see §3.2) to work correctly at the world-loop boundary.
 
 ```js
 // engine/WeatherSystem.js
+import { wrappedDist } from '../utils/world';
+
 const BLEND_RADIUS = 400; // world px — blend starts 400px before/after zone center
 
 export function resolveWeather(worldOffset) {
   let nearest = { zone: DEFAULT_ZONE, dist: Infinity };
   for (const zone of WEATHER_ZONES) {
-    const screenDist = Math.abs(zone.worldX - worldOffset);
-    if (screenDist < nearest.dist) nearest = { zone, dist: screenDist };
+    const dist = wrappedDist(zone.worldX, worldOffset); // ← wrapping-aware
+    if (dist < nearest.dist) nearest = { zone, dist };
   }
   const t = smoothstep(clamp(1 - nearest.dist / BLEND_RADIUS, 0, 1));
   blendWeatherInto(world.weather, nearest.zone.weather, t * 0.1); // gradual per-frame blend
@@ -498,7 +640,7 @@ export function resolveWeather(worldOffset) {
 
 ### 5.5 DayNightCycle
 
-`dayNightT` maps directly from `worldOffset / WORLD_WIDTH`. One full world loop = one full day.
+`dayNightT` maps directly from `worldOffset / WORLD_WIDTH`. One full world loop = one full day. **DayNightCycle is the single source of truth for sky colors** — themes render the palette, they do not override it.
 
 ```js
 // engine/DayNightCycle.js
@@ -521,9 +663,9 @@ export function getPalette(t) {
 }
 ```
 
-Each theme's `drawBackground` receives this palette and renders the sky in its own visual language — pixel blocks, watercolour wash, gradient fill, or technical grid lines.
+Each theme's `drawBackground` receives this palette and renders the sky in its own visual language — Lo-fi as gradient fill, Pixel as blocky pixel strips, Storybook as watercolour wash, Blueprint as grid overlay with coordinate labels.
 
-**Star field:** visible when `dayNightT > 0.75`. 120 pre-seeded positions. Alpha fades in with `mapRange(t, 0.75, 0.9, 0, 1)`. Twinkling via `sin(time * freq + phase)`.
+**Star field:** visible when `dayNightT > 0.75`. 120 pre-seeded positions (seeded once at init, stored in a `Float32Array`). Alpha fades in with `mapRange(t, 0.75, 0.9, 0, 1)`. Twinkling via `sin(time * freq + phase)`.
 
 **Sun/Moon:** drawn by each theme's `drawBackground`. Blueprint draws them as annotated circles with dimension lines. Pixel as chunky sprites. Storybook as illustrated characters. Lo-fi as soft glowing orbs.
 
@@ -533,11 +675,21 @@ When `worldOffset` wraps, layers tile automatically (see §6.2 caching). On each
 
 ```js
 // engine/LoopManager.js
-export function onWrap() {
+let prevOffset = 0;
+
+export function checkWrap(worldOffset) {
+  // Detect forward wrap: was near end, now near start
+  if (prevOffset > WORLD_WIDTH * 0.9 && worldOffset < WORLD_WIDTH * 0.1) {
+    onWrap();
+  }
+  prevOffset = worldOffset;
+}
+
+function onWrap() {
   world.lap++;
-  // dayNightT resets to 0 automatically (it's derived from worldOffset)
   WeatherSystem.reset();
   triggerCyclistReaction('lapComplete'); // hands up for 500ms
+  notifySubscribers(); // React components (StyleHUD) re-render with new lap count
 }
 ```
 
@@ -552,71 +704,99 @@ A **lap counter** in `StyleHUD` shows `LAP 2`, `LAP 3` — a small delight for v
 ```js
 // WorldCanvas.js — master rAF loop
 function frame(time) {
+  // — Timing —
   const dt = Math.min(time - lastTime, 50); // cap at 50ms (prevents physics explosion)
   lastTime = time;
   world.dt  = dt;
   world.fps = 1000 / dt;
 
-  // Tick systems
+  // — Pause when hidden —
+  if (document.hidden) {
+    requestAnimationFrame(frame);
+    return;
+  }
+
+  // — Tick systems —
   ThemeEngine.tick(dt / 1000);
   WeatherSystem.resolveWeather(world.worldOffset);
+  LoopManager.checkWrap(world.worldOffset);
   particles.update(dt / 1000);
 
-  // Early exit — nothing changed
+  // — Update toggle object proximity —
+  const toggleDist = wrappedDist(5400, world.worldOffset);
+  world.toggleInteractState =
+    toggleDist < 100 ? 'nearby' :
+    toggleDist < 300 ? 'approaching' : 'idle';
+
+  // — Early exit if nothing changed —
   if (
-    world.worldSpeed === 0 &&
+    Math.abs(world.worldSpeed) < 0.001 &&
     world.themeTransitionT >= 1.0 &&
     !particles.hasAlive() &&
-    !world.weather.lightningActive
+    !world.weather.lightningActive &&
+    !isDirty
   ) {
     requestAnimationFrame(frame);
     return;
   }
 
-  // Resolve interpolated theme
+  // — Resolve interpolated theme —
   const colors     = ThemeEngine.getInterpolatedTheme();
   const skyPalette = DayNightCycle.getPalette(world.dayNightT);
   const theme      = THEMES[world.theme];
 
-  // Composite layers (back → front)
+  // — Composite layers (back → front) —
   ctx.clearRect(0, 0, width, height);
   theme.drawBackground(ctx, skyPalette, world.dayNightT, world.worldOffset);
   drawMidground(ctx, colors, world.worldOffset);
   theme.drawRoad(ctx, world.worldOffset);
-  drawBuildings(ctx, theme, world.worldOffset, world.activeBuilding);
-  theme.drawToggleObject(ctx, getScreenX(5400, world.worldOffset), world.themeInteractState);
+  drawBuildings(ctx, theme, world.worldOffset, world.activeBuilding, world.hoveredBuilding);
+  theme.drawToggleObject(ctx, worldToScreen(5400, world.worldOffset, width), world.toggleInteractState);
   cyclist.draw(ctx, theme, world);
   theme.drawWeather(ctx, world.weather, dt / 1000);
   drawForeground(ctx, world.worldSpeed, world.weather);
 
-  // Destination theme announces its own arrival
+  // — Destination theme announces its own arrival —
   if (world.themeTransitionT < 1.0) {
     theme.transitionIn(ctx, world.themeTransitionT);
   }
 
+  isDirty = false;
   requestAnimationFrame(frame);
 }
 ```
 
 ### 6.2 OffscreenCanvas Caching
 
-Sky and far background are expensive per-frame. They change only when `dayNightT` shifts > 0.005 or theme changes.
+Sky and far background are expensive per-frame. They change only when `dayNightT` shifts > 0.005 or theme changes. **Buffers are allocated once and reused** — no per-invalidation `new OffscreenCanvas`.
 
 ```js
 // canvas/offscreen.js
 let skyBuffer = null;
+let skyCtx    = null;
 let lastSkyT  = -1;
 let lastTheme = null;
+
+export function init(width, height) {
+  skyBuffer = new OffscreenCanvas(width, height);
+  skyCtx    = skyBuffer.getContext('2d');
+}
+
+export function resize(width, height) {
+  skyBuffer.width  = width;
+  skyBuffer.height = height;
+  lastSkyT = -1; // force redraw on next frame
+}
 
 export function getSkyBuffer(width, height, palette, dayNightT, theme) {
   if (
     Math.abs(dayNightT - lastSkyT) < 0.005 &&
-    theme.id === lastTheme &&
-    skyBuffer
+    theme.id === lastTheme
   ) return skyBuffer;
 
-  skyBuffer = new OffscreenCanvas(width, height);
-  theme.drawBackground(skyBuffer.getContext('2d'), palette, dayNightT, 0);
+  // Reuse existing buffer — just clear and redraw
+  skyCtx.clearRect(0, 0, width, height);
+  theme.drawBackground(skyCtx, palette, dayNightT, 0);
   lastSkyT  = dayNightT;
   lastTheme = theme.id;
   return skyBuffer;
@@ -649,6 +829,22 @@ leftKnee   = twoSegmentIK(hip, leftPedal, THIGH, SHIN);
 // mirror for right leg
 ```
 
+**Two-segment IK solver:**
+
+```js
+function twoSegmentIK(root, target, lenA, lenB) {
+  const dist = Math.hypot(target.x - root.x, target.y - root.y);
+  const clampedDist = clamp(dist, Math.abs(lenA - lenB) + 0.01, lenA + lenB - 0.01);
+  const angle = Math.atan2(target.y - root.y, target.x - root.x);
+  const cosKnee = (lenA * lenA + clampedDist * clampedDist - lenB * lenB) / (2 * lenA * clampedDist);
+  const kneeAngle = angle - Math.acos(clamp(cosKnee, -1, 1));
+  return {
+    x: root.x + lenA * Math.cos(kneeAngle),
+    y: root.y + lenA * Math.sin(kneeAngle),
+  };
+}
+```
+
 **Reaction state machine:**
 
 | Trigger | Pose | Duration |
@@ -665,6 +861,8 @@ leftKnee   = twoSegmentIK(hip, leftPedal, THIGH, SHIN);
 | Rain zone | Raincoat, visor down, hunch | while raining |
 | Wind zone | Lean into wind, scarf billows | while windy |
 
+**Reaction priority** (highest wins): Building click > Hop off/on > Weather > Zone-based > Speed-based > Idle.
+
 All pose transitions use `smoothstep` over 400ms.
 
 ### 6.4 Particle Pool (`particles.js`)
@@ -678,6 +876,16 @@ let alive    = 0;
 
 // Types: 0=dust, 1=rain, 2=wind_debris, 3=lightning, 4=blossom, 5=vector_arrow
 // Dead particles compacted to back via swap — O(1) removal
+
+function swap(indexA, indexB) {
+  for (let j = 0; j < STRIDE; j++) {
+    const a = indexA * STRIDE + j;
+    const b = indexB * STRIDE + j;
+    const tmp = pool[a];
+    pool[a] = pool[b];
+    pool[b] = tmp;
+  }
+}
 ```
 
 Theme's `drawWeather` renders each type in its visual language — rain is `4×2px` blocks in Pixel, ink strokes in Storybook, velocity arrows in Blueprint.
@@ -691,12 +899,49 @@ Canvas is `position: fixed, z-index: 0`. React components sit above it as normal
 ```
 z-index stack:
   100  BuildingModal (slides in from right on building click)
+   50  OnboardingHint (centered — fades out after first input)
    10  StyleHUD (corner — theme name + lap counter)
     5  SpeedHUD (optional speed indicator)
     0  <canvas> (the entire world)
 ```
 
 `BuildingModal` re-skins automatically via CSS variables synced by `ThemeEngine`. Each section component renders inside the modal. The modal is focus-trapped while open; Escape closes it.
+
+### 7.1 OnboardingHint
+
+A first-visit prompt that tells the visitor how to interact. Disappears permanently after the first input event.
+
+```
+┌─────────────────────────────────┐
+│                                 │
+│    ← Scroll or drag to ride →   │    Centered on screen
+│                                 │    Semi-transparent overlay
+│    Click a building to explore  │    Uses --font-body, --color-text-muted
+│                                 │
+└─────────────────────────────────┘
+```
+
+**Implementation:**
+
+```jsx
+// components/OnboardingHint/index.jsx
+function OnboardingHint() {
+  const hasInteracted = useWorldState(s => s.hasInteracted);
+
+  if (hasInteracted) return null;
+
+  return (
+    <div className={styles.hint} aria-hidden="true">
+      <p className={styles.primary}>← Scroll or drag to ride →</p>
+      <p className={styles.secondary}>Click a building to explore</p>
+    </div>
+  );
+}
+```
+
+- `aria-hidden="true"` because it's a visual hint, not essential content
+- Fades out via CSS transition when `hasInteracted` turns true
+- On mobile, text reads "← Swipe to ride →" (detected via `matchMedia('(pointer: coarse)')`)
 
 ---
 
@@ -754,7 +999,7 @@ Fonts snap at the start of the `transitionIn` animation (masked by it):
 |---|---|---|---|---|---|
 | `high` | > 1024px | sky + far + mid | 200 | Full IK rig | 2 |
 | `medium` | 640–1024px | sky + far | 100 | Full IK rig | 1.5 |
-| `low` | < 640px | sky only | 0 | Simplified | 1 |
+| `low` | < 640px | sky only | 50 | Simplified (no IK, basic shapes) | 1 |
 
 LOD set once on mount via `matchMedia`, updated on resize.
 
@@ -765,8 +1010,10 @@ LOD set once on mount via `matchMedia`, updated on resize.
 | Technique | What it solves |
 |---|---|
 | OffscreenCanvas for sky + background | No per-frame recompute unless `dayNightT` changes meaningfully |
+| OffscreenCanvas **reuse** (no re-allocation) | No GC pressure from buffer creation on invalidation |
 | `Float32Array` particle pool | Zero GC pressure — no object allocation after init |
-| Passive wheel + pointer listeners | No input jank |
+| Pointer Events with `setPointerCapture` | Unified input across mouse/touch/pen, no lost events on leave |
+| `touch-action: none` on canvas | Prevents iOS/Android scroll bounce and pinch-zoom interference |
 | EMA velocity smoothing (α=0.12) | Jitter-free cyclist lean and particle emission rate |
 | Early rAF exit on idle | No GPU work when world is static and no particles alive |
 | dt cap at 50ms | No physics explosion after tab switch |
@@ -776,6 +1023,8 @@ LOD set once on mount via `matchMedia`, updated on resize.
 | DPR cap (LOD-based) | Prevents 3× retina fill rate from degrading perf |
 | Font `display: swap` | No FOIT — text visible before fonts load |
 | `prefers-reduced-motion` | Static canvas fallback, all transitions 0ms |
+| Wrapping-aware distance (`wrappedDist`) | Correct weather/hit-test math at world boundaries |
+| dt-scaled theme transitions | Consistent 1s transition duration regardless of frame rate |
 
 **Target:** 60fps on a 2021 mid-range laptop (M1 MacBook Air, Intel i5-1135G7).
 
@@ -784,13 +1033,14 @@ LOD set once on mount via `matchMedia`, updated on resize.
 ## 10. Accessibility
 
 - `prefers-reduced-motion`: canvas shows a static scene (cyclist idle, no weather, no parallax). All CSS transitions disabled.
-- Keyboard navigation: Tab reaches buildings via focusable overlay elements. Enter opens modal.
-- `BuildingModal`: focus-trapped while open. Escape closes. Focus returns to world on close.
+- Keyboard navigation: Tab reaches buildings via invisible focusable overlay `<button>` elements positioned over each building's screen location. Enter/Space opens modal. Arrow keys cycle between buildings.
+- `BuildingModal`: focus-trapped while open. Escape closes. Focus returns to the building's overlay button on close.
 - Semantic HTML inside all modal content (`<article>`, `<h2>`, etc.)
-- WCAG AA contrast verified for all text on all four theme palettes
-- `aria-live="polite"` on `StyleHUD` — theme change announced to screen readers
-- Skip link: "Skip to content" visible on first Tab press
-- `<canvas>` contains a `<p>` fallback description for screen readers
+- WCAG AA contrast verified for all text on all four theme palettes.
+- `aria-live="polite"` on `StyleHUD` — theme change and lap count announced to screen readers.
+- Skip link: "Skip to content" visible on first Tab press. Jumps focus to the first building overlay button.
+- `<canvas>` has `role="img"` and `aria-label` describing the cycling world.
+- Onboarding hint is `aria-hidden="true"` (visual-only; screen reader users use keyboard nav).
 
 ---
 
@@ -866,46 +1116,56 @@ Phase 1 — Foundation
   [ ] Step 1:  Scaffold Vite + React
                - npm create vite, folder structure, global.css, variables.css
                - index.html with font preloads, OG tags, base path
+               - global.css: canvas touch-action: none, user-select: none
                Output: blank page, correct Lo-fi fonts, dark background
 
   [ ] Step 2:  Engine layer
-               - WorldState.js (plain object + subscribe/getSnapshot)
-               - InputDriver.js (wheel + drag → worldSpeed + worldOffset)
+               - WorldState.js (plain object + subscribe/getSnapshot/notifySubscribers)
+               - InputDriver.js (Pointer Events + wheel → worldSpeed + worldOffset)
                - useWorldState.js (useSyncExternalStore bridge)
-               Output: worldOffset updating in console on scroll/drag
+               - utils/world.js (wrappedDist, worldToScreen, isOnScreen)
+               - utils/math.js (lerp, clamp, mapRange, smoothstep, easeInOutCubic)
+               Output: worldOffset updating in console on scroll/drag, works on mobile
 
   [ ] Step 3:  Canvas scaffolding
                - useCanvas.js (ref, context, DPR, resize, rAF)
                - WorldCanvas.js (fixed canvas, frame loop, layer stubs)
+               - offscreen.js (buffer allocation, resize handler)
                Output: canvas fills screen, reacts to input events
 
 Phase 2 — Canvas World
   [ ] Step 4:  Road + looping world
-               - road.js (ground surface, road markings)
-               - LoopManager.js (seamless offset wrap)
+               - road.js (ground surface, road markings, parallax at 1.0×)
+               - LoopManager.js (seamless offset wrap, lap detection)
                Output: road scrolls horizontally and loops seamlessly
 
   [ ] Step 5:  Sky + DayNightCycle
-               - sky.js + DayNightCycle.js + offscreen.js caching
+               - sky.js + DayNightCycle.js + offscreen.js caching (reuse buffers)
+               - Star field (Float32Array, 120 pre-seeded positions)
+               - Sun/moon arc
                Output: sky transitions dawn→noon→dusk→night as world advances
 
   [ ] Step 6:  Background + midground parallax
-               - background.js (0.2x), midground.js (0.5x)
+               - background.js (0.2×), midground.js (0.5×)
                Output: layered parallax depth behind the road
 
   [ ] Step 7:  Cyclist IK rig
-               - cyclist.js (skeletal rig, two-segment IK, lean)
+               - cyclist.js (skeletal rig, two-segment IK solver, lean)
+               - Pedal animation synced to worldSpeed
                Output: cyclist pedals with world speed, leans on fast input
 
   [ ] Step 8:  Buildings + hit detection
-               - buildings.js (draw + AABB hit test)
-               - data/buildings.js registry
-               Output: landmark buildings at correct world positions, clickable
+               - buildings.js layer (draw + wrapping-aware AABB hit test)
+               - data/buildings.js registry (with height field)
+               - Cursor state changes (grab/pointer)
+               - Hover glow effect
+               Output: buildings at correct positions, clickable, hover feedback
 
   [ ] Step 9:  Particles + weather
-               - particles.js (Float32Array pool)
-               - weather.js (rain, wind, lightning renderers)
-               - WeatherSystem.js (zone proximity blend)
+               - particles.js (Float32Array pool, swap compaction)
+               - weather.js layer (rain, wind, lightning renderers)
+               - WeatherSystem.js (zone proximity blend via wrappedDist)
+               - utils/colors.js (lerpColor)
                Output: weather changes per zone, cyclist reacts
 
   [ ] Step 10: Foreground + speed effects
@@ -915,34 +1175,36 @@ Phase 2 — Canvas World
 Phase 3 — Themes
   [ ] Step 11: Lo-fi theme (formalize as default)
                - canvas/themes/lofi.js (all draw overrides)
-               - ThemeEngine.js (interpolation, CSS variable sync)
+               - ThemeEngine.js (dt-scaled interpolation, CSS variable sync)
                - transitionIn: warm orange fade
                Output: Lo-fi world fully themed end-to-end
 
   [ ] Step 12: Pixel theme
-               - canvas/themes/pixel.js (pixel grid snapping)
+               - canvas/themes/pixel.js (pixel grid snapping, 4-frame cyclist sprite)
                - transitionIn: CRT scanline wipe
                Output: toggle switches to Pixel world with CRT transition
 
   [ ] Step 13: Storybook theme
-               - canvas/themes/storybook.js (wobbly beziers)
+               - canvas/themes/storybook.js (wobbly beziers, hatching)
                - transitionIn: page-turn ink bleed
                Output: toggle switches to Storybook world
 
   [ ] Step 14: Blueprint theme
-               - canvas/themes/blueprint.js (outline-only, grid)
+               - canvas/themes/blueprint.js (outline-only, grid, dimension arrows)
                - transitionIn: lines erase and redraw
                Output: toggle switches to Blueprint world
 
   [ ] Step 15: Diegetic toggle objects
-               - toggleObject.js (per-theme world objects in canvas)
-               - Interaction: approach → highlight → click → transitionIn
+               - toggleObject.js layer (per-theme world objects)
+               - Toggle proximity detection (toggleInteractState in WorldState)
+               - Interaction: approach → highlight → click → theme cycle
                Output: each theme has its own in-world toggle object
 
 Phase 4 — Content
   [ ] Step 16: BuildingModal + building interaction
                - Cyclist brake → hop off → door open → modal slide in
-               - BuildingModal component (focus trap, Escape close, themed)
+               - BuildingModal component (focus trap, Escape close, themed via CSS vars)
+               - Keyboard overlay buttons for building access
                Output: click any building, modal opens with placeholder content
 
   [ ] Step 17: Section content components
@@ -951,16 +1213,23 @@ Phase 4 — Content
                Output: all 5 sections readable and styled per theme
 
 Phase 5 — Polish
-  [ ] Step 18: StyleHUD + SpeedHUD + lap counter
-               Output: subtle overlays, lap counter increments on world wrap
+  [ ] Step 18: OnboardingHint + StyleHUD + SpeedHUD + lap counter
+               - OnboardingHint (disappears on first input, mobile-adapted text)
+               - StyleHUD (theme name + lap counter)
+               - SpeedHUD (optional speed gauge)
+               Output: subtle overlays, onboarding works, lap counter increments
 
   [ ] Step 19: Cyclist reaction poses
                - All zone-based + event-based reactions
+               - Reaction priority system
+               - Pose interpolation (smoothstep over 400ms)
                Output: cyclist reacts expressively to every zone and event
 
   [ ] Step 20: Responsive + reduced-motion pass
-               - LOD switching, mobile touch drag, simplified canvas
-               - prefers-reduced-motion: static fallback
+               - LOD switching (matchMedia), mobile-adapted onboarding text
+               - Simplified cyclist for LOD 'low'
+               - prefers-reduced-motion: static fallback (no rAF loop)
+               - Keyboard a11y audit (Tab, Enter, Escape, Arrow keys)
                Output: works on phone, passes accessibility audit
 
   [ ] Step 21: GitHub Pages deploy
@@ -980,7 +1249,7 @@ main.jsx
         │                        ◄─ engine/LoopManager.js
         │                        ◄─ engine/WeatherSystem.js  ◄─ data/weather.js
         │                        ◄─ engine/DayNightCycle.js
-        │                        ◄─ engine/ThemeEngine.js    ◄─ canvas/themes/
+        │                        ◄─ engine/ThemeEngine.js    ◄─ canvas/themes/*
         │
         ├── canvas/WorldCanvas.js ◄─ hooks/useCanvas.js
         │     ├── canvas/layers/sky.js
@@ -988,6 +1257,7 @@ main.jsx
         │     ├── canvas/layers/midground.js
         │     ├── canvas/layers/road.js
         │     ├── canvas/layers/buildings.js   ◄─ data/buildings.js
+        │     │                                ◄─ utils/world.js
         │     ├── canvas/layers/toggleObject.js
         │     ├── canvas/layers/weather.js
         │     ├── canvas/layers/foreground.js
@@ -1008,8 +1278,9 @@ main.jsx
         │           ├── Hobbies.jsx
         │           └── Contact.jsx
         │
-        ├── components/StyleHUD  ◄─ hooks/useWorldState
-        └── components/SpeedHUD  ◄─ hooks/useWorldState
+        ├── components/OnboardingHint ◄─ hooks/useWorldState
+        ├── components/StyleHUD       ◄─ hooks/useWorldState
+        └── components/SpeedHUD       ◄─ hooks/useWorldState
 ```
 
-No circular dependencies. State flows down. Canvas reads `WorldState` directly. React components subscribe via `useWorldState`. `ThemeEngine` writes CSS variables that canvas and DOM consume simultaneously.
+No circular dependencies. State flows down. Canvas reads `WorldState` directly. React components subscribe via `useWorldState`. `ThemeEngine` writes CSS variables that canvas and DOM consume simultaneously. All world-space distance calculations go through `utils/world.js`.
