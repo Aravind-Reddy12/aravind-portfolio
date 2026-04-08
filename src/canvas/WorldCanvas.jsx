@@ -7,6 +7,7 @@ import { drawSky } from './layers/sky';
 import { drawBackground } from './layers/background';
 import { drawMidground } from './layers/midground';
 import { drawRoad } from './layers/road';
+import { drawBuildings, hitTestBuildings } from './layers/buildings';
 import { cyclist } from './cyclist';
 import { lerp } from '../utils/math';
 import { WORLD_WIDTH } from '../constants';
@@ -20,6 +21,52 @@ export default function WorldCanvas() {
     const canvas = canvasRef.current;
     if (!canvas) return;
     return initInput(canvas);
+  }, []);
+
+  // Cursor + hover + click handling
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    let dragging = false;
+
+    function onPointerDown() { dragging = true; }
+    function onPointerUp()   { dragging = false; }
+
+    function onPointerMove(e) {
+      const rect    = canvas.getBoundingClientRect();
+      const mx      = e.clientX - rect.left;
+      const my      = e.clientY - rect.top;
+      const hit     = hitTestBuildings(mx, my, world.worldOffset, rect.width, rect.height);
+      world.hoveredBuilding = hit ? hit.id : null;
+      canvas.style.cursor   = hit ? 'pointer' : dragging ? 'grabbing' : 'grab';
+    }
+
+    function onClick(e) {
+      const rect = canvas.getBoundingClientRect();
+      const mx   = e.clientX - rect.left;
+      const my   = e.clientY - rect.top;
+      const hit  = hitTestBuildings(mx, my, world.worldOffset, rect.width, rect.height);
+      if (!hit) return;
+      if (hit.id === 'toggle') {
+        console.log('Toggle clicked — theme switch coming later');
+      } else if (hit.section) {
+        world.activeBuilding = hit.id;
+        console.log('Building clicked:', hit.id);
+      }
+    }
+
+    canvas.addEventListener('pointerdown', onPointerDown);
+    canvas.addEventListener('pointerup',   onPointerUp);
+    canvas.addEventListener('pointermove', onPointerMove);
+    canvas.addEventListener('click',       onClick);
+
+    return () => {
+      canvas.removeEventListener('pointerdown', onPointerDown);
+      canvas.removeEventListener('pointerup',   onPointerUp);
+      canvas.removeEventListener('pointermove', onPointerMove);
+      canvas.removeEventListener('click',       onClick);
+    };
   }, []);
 
   // Master rAF loop
@@ -70,7 +117,10 @@ export default function WorldCanvas() {
       // Road layer (1.0× parallax)
       drawRoad(ctx, width, height, world.worldOffset);
 
-      // Cyclist (fixed screen X, on the road)
+      // Buildings (1.0× parallax, on the road)
+      drawBuildings(ctx, width, height, world.worldOffset, world.activeBuilding, world.hoveredBuilding, world.dayNightT);
+
+      // Cyclist (fixed screen X, on the road, in front of buildings)
       cyclist.draw(ctx, world, width, height);
 
       rafId = requestAnimationFrame(frame);
