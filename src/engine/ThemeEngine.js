@@ -2,8 +2,9 @@ import { world } from './WorldState';
 import { easeInOutCubic } from '../utils/math';
 import { lerpColor, alpha } from '../utils/colors';
 import { lofiTheme } from '../canvas/themes/lofi';
+import { pixelTheme } from '../canvas/themes/pixel';
 
-const THEMES = { lofi: lofiTheme };
+const THEMES = { lofi: lofiTheme, pixel: pixelTheme };
 
 let fromTheme   = null;
 let toTheme     = null;

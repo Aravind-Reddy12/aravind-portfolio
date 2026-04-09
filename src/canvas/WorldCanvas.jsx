@@ -25,6 +25,16 @@ export default function WorldCanvas() {
     return initInput(canvas);
   }, []);
 
+  // Temporary keyboard shortcuts for theme testing (1 = lo-fi, 2 = pixel)
+  useEffect(() => {
+    function onKeyDown(e) {
+      if (e.key === '1') ThemeEngine.setTheme('lofi');
+      if (e.key === '2') ThemeEngine.setTheme('pixel');
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
   // Cursor + hover + click handling
   useEffect(() => {
     const canvas = canvasRef.current;

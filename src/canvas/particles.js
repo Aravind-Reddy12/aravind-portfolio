@@ -99,6 +99,21 @@ export function draw(ctx) {
   }
 }
 
+// Custom draw — passes each live particle to fn for theme-specific rendering
+export function drawWith(ctx, fn) {
+  for (let i = 0; i < alive; i++) {
+    const base    = i * STRIDE;
+    const a       = Math.max(0, pool[base + 4] / pool[base + 5]);
+    fn(ctx,
+      pool[base + 0], pool[base + 1], // x, y
+      pool[base + 2], pool[base + 3], // vx, vy
+      pool[base + 7],                  // type
+      pool[base + 6],                  // size
+      pool[base + 8], pool[base + 9], // r, g
+      a);
+  }
+}
+
 export function hasAlive() { return alive > 0; }
 export function clear()    { alive = 0; }
 export function getAlive() { return alive; }
