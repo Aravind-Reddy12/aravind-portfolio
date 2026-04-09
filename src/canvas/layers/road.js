@@ -3,6 +3,39 @@ const ROAD_COLOR      = '#1e1a2e';
 const DASH_COLOR      = '#f4a261';
 const EDGE_COLOR      = '#3a3050';
 
+// Theme-aware version — accepts palette instead of hardcoded colors
+export function drawRoadLayer(ctx, width, height, worldOffset, palette) {
+  const groundY = height * (1 - GROUND_RATIO);
+  const roadY   = groundY;
+
+  ctx.fillStyle = palette.ground;
+  ctx.fillRect(0, groundY, width, height - groundY);
+
+  ctx.fillStyle = palette.road;
+  ctx.fillRect(0, roadY, width, ROAD_HEIGHT);
+
+  ctx.strokeStyle = EDGE_COLOR;
+  ctx.lineWidth   = EDGE_LINE_WIDTH;
+
+  ctx.beginPath();
+  ctx.moveTo(0, roadY);
+  ctx.lineTo(width, roadY);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(0, roadY + ROAD_HEIGHT);
+  ctx.lineTo(width, roadY + ROAD_HEIGHT);
+  ctx.stroke();
+
+  const centerY    = roadY + ROAD_HEIGHT / 2 - DASH_HEIGHT / 2;
+  const dashOffset = -(worldOffset % DASH_SPACING);
+
+  ctx.fillStyle = palette.roadLine;
+  for (let x = dashOffset; x < width; x += DASH_SPACING) {
+    ctx.fillRect(x, centerY, DASH_WIDTH, DASH_HEIGHT);
+  }
+}
+
 const GROUND_RATIO    = 0.30; // bottom 30% of canvas
 const ROAD_HEIGHT     = 40;   // px — the tarmac strip
 const DASH_WIDTH      = 30;

@@ -3,17 +3,16 @@ import { useCanvas } from '../hooks/useCanvas';
 import { world, notifySubscribers } from '../engine/WorldState';
 import { init as initInput } from '../engine/InputDriver';
 import { checkWrap } from '../engine/LoopManager';
-import { drawSky } from './layers/sky';
-import { drawBackground } from './layers/background';
-import { drawMidground } from './layers/midground';
-import { drawRoad } from './layers/road';
-import { drawBuildings, hitTestBuildings } from './layers/buildings';
-import { cyclist } from './cyclist';
-import { drawWeather } from './layers/weather';
-import { drawForeground } from './layers/foreground';
+import * as ThemeEngine from '../engine/ThemeEngine';
+import { getPalette } from '../engine/DayNightCycle';
+import { hitTestBuildings } from './layers/buildings';
+import { BUILDINGS } from '../data/buildings';
+import { worldToScreen, isOnScreen } from '../utils/world';
 import { resolveWeather } from '../engine/WeatherSystem';
 import { lerp } from '../utils/math';
 import { WORLD_WIDTH } from '../constants';
+
+const ROAD_Y_RATIO = 0.70;
 
 export default function WorldCanvas() {
   const canvasRef = useRef(null);
@@ -76,6 +75,8 @@ export default function WorldCanvas() {
   useEffect(() => {
     if (!ctx || width === 0 || height === 0) return;
 
+    ThemeEngine.init('lofi');
+
     let rafId;
     let lastTime = performance.now();
 
@@ -105,35 +106,51 @@ export default function WorldCanvas() {
       // Weather blending
       resolveWeather(world.worldOffset);
 
+      // Advance theme transition
+      ThemeEngine.tick(dt / 1000);
+
       // Notify React subscribers
       notifySubscribers();
+
+      // Active theme (has draw methods) + sky palette (DayNightCycle is source of truth)
+      const theme      = ThemeEngine.getActiveTheme();
+      const skyPalette = getPalette(world.dayNightT);
+      const roadY      = height * ROAD_Y_RATIO;
 
       // Clear
       ctx.clearRect(0, 0, width, height);
 
-      // Sky layer (backmost)
-      drawSky(ctx, width, height, world.dayNightT);
-
-      // Far background — mountains + clouds (0.2× parallax)
-      drawBackground(ctx, width, height, world.worldOffset, world.dayNightT);
+      // Sky + far mountains (combined into drawBackground per architecture §4.1)
+      theme.drawBackground(ctx, skyPalette, world.dayNightT, world.worldOffset, width, height);
 
       // Mid background — hills + trees (0.5× parallax)
-      drawMidground(ctx, width, height, world.worldOffset, world.dayNightT);
+      theme.drawMidground(ctx, world.worldOffset, world.dayNightT, width, height);
 
-      // Road layer (1.0× parallax)
-      drawRoad(ctx, width, height, world.worldOffset);
+      // Road surface + dashes
+      theme.drawRoad(ctx, world.worldOffset, width, height);
 
-      // Buildings (1.0× parallax, on the road)
-      drawBuildings(ctx, width, height, world.worldOffset, world.activeBuilding, world.hoveredBuilding, world.dayNightT);
+      // Buildings (1.0× parallax) — iterate, cull, draw per building
+      for (const b of BUILDINGS) {
+        if (!isOnScreen(b.worldX, b.width, world.worldOffset, width)) continue;
+        const screenX  = worldToScreen(b.worldX, world.worldOffset, width);
+        const isHovered = b.id === world.hoveredBuilding;
+        const isActive  = b.id === world.activeBuilding;
+        theme.drawBuilding(ctx, b, screenX, roadY, world.dayNightT, isHovered, isActive);
+      }
 
-      // Cyclist (fixed screen X, on the road, in front of buildings)
-      cyclist.draw(ctx, world, width, height);
+      // Cyclist (fixed screen X)
+      theme.drawCyclist(ctx, { world, width, height });
 
       // Weather particles + lightning + fog
-      drawWeather(ctx, width, height, world.weather, world.worldSpeed, dt / 1000);
+      theme.drawWeather(ctx, world.weather, world.worldSpeed, dt / 1000, width, height);
 
-      // Foreground — speed lines, dust, debris (1.2× parallax), vignette (frontmost)
-      drawForeground(ctx, width, height, world.worldSpeed, world.worldOffset, world.weather);
+      // Foreground — speed lines, dust, debris, vignette (frontmost)
+      theme.drawForeground(ctx, world.worldSpeed, world.worldOffset, world.weather, width, height);
+
+      // Theme transition overlay (runs during theme switch; lofi init sets T=1 so skipped)
+      if (world.themeTransitionT < 1.0) {
+        theme.transitionIn(ctx, world.themeTransitionT, width, height);
+      }
 
       rafId = requestAnimationFrame(frame);
     }

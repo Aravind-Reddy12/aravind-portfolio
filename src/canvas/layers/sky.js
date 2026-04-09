@@ -33,11 +33,11 @@ function drawSunGlow(ctx, x, y, radius, color) {
   ctx.fill();
 }
 
-export function drawSky(ctx, width, height, dayNightT) {
+export function drawSky(ctx, width, height, dayNightT, skyPalette) {
   if (!starsSeeded) seedStars();
 
   const horizonY = height * HORIZON_RATIO;
-  const { top, bottom } = getPalette(dayNightT);
+  const { top, bottom } = skyPalette || getPalette(dayNightT);
 
   // Sky gradient
   const grad = ctx.createLinearGradient(0, 0, 0, horizonY);

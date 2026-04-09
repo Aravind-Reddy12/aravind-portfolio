@@ -218,6 +218,32 @@ function drawToggle(ctx, x, y, w, h, hovered, active) {
   }
 }
 
+// ─── Per-building draw — called by theme's drawBuilding method ─────────────────
+
+export function drawSingleBuilding(ctx, building, screenX, baseY, dayNightT, isHovered, isActive) {
+  const bx    = screenX;
+  const by    = baseY - building.height;
+  const night = dayNightT > 0.7;
+
+  ctx.save();
+
+  if (isHovered && building.id !== 'toggle') {
+    ctx.shadowColor = '#f4a261';
+    ctx.shadowBlur  = 20;
+  }
+
+  switch (building.id) {
+    case 'education':  drawSchool(ctx, bx, by, building.width, building.height, isHovered, isActive, night); break;
+    case 'experience': drawOffice(ctx, bx, by, building.width, building.height, isHovered, isActive, night); break;
+    case 'projects':   drawGarage(ctx, bx, by, building.width, building.height, isHovered, isActive, night); break;
+    case 'hobbies':    drawCourt(ctx, bx, by, building.width, building.height, isHovered, isActive, night);  break;
+    case 'contact':    drawCafe(ctx, bx, by, building.width, building.height, isHovered, isActive, night);   break;
+    case 'toggle':     drawToggle(ctx, bx, by, building.width, building.height, isHovered, isActive);        break;
+  }
+
+  ctx.restore();
+}
+
 // ─── Main draw ────────────────────────────────────────────────────────────────
 
 export function drawBuildings(ctx, width, height, worldOffset, activeBuilding, hoveredBuilding, dayNightT) {

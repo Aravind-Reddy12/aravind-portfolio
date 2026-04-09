@@ -8,7 +8,8 @@
       "Bash(mkdir -p src/engine src/canvas/layers src/canvas/themes src/components src/hooks src/data src/utils src/styles src/constants)",
       "Bash(touch src/engine/.gitkeep src/canvas/layers/.gitkeep src/canvas/themes/.gitkeep src/components/.gitkeep src/hooks/.gitkeep src/data/.gitkeep src/utils/.gitkeep)",
       "Bash(npm install:*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(node --input-type=module)"
     ]
   }
 }
