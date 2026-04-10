@@ -22,7 +22,7 @@ An interactive, canvas-driven cycling portfolio where you ride through a looping
 
 ## Live Demo
 
-[https://aravind-ckd.github.io/aravind-portfolio/](https://aravind-ckd.github.io/aravind-portfolio/)
+[https://aravind-reddy12.github.io/aravind-portfolio/](https://aravind-reddy12.github.io/aravind-portfolio/)
 
 ## Development
 
