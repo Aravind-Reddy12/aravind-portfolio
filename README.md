@@ -1,16 +1,38 @@
-# React + Vite
+# The Ride of Aravind
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+An interactive, canvas-driven cycling portfolio where you ride through a looping animated world. Explore buildings to learn about my education, experience, projects, hobbies, and contact info.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Procedurally animated cyclist with IK rig
+- 4 visual themes: Lo-fi, Pixel Art, Storybook, Blueprint
+- Dynamic weather system with zone-based transitions
+- Scroll-driven day/night cycle
+- Clickable landmark buildings with portfolio content
+- Seamless looping world
+- Responsive design with mobile support
+- Accessible: keyboard navigation, reduced motion, screen reader support
 
-## React Compiler
+## Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- React 18 + Vite
+- HTML5 Canvas API (raw, no animation libraries)
+- CSS Modules + CSS Variables
+- GitHub Pages
 
-## Expanding the ESLint configuration
+## Live Demo
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+[https://aravind-ckd.github.io/aravind-portfolio/](https://aravind-ckd.github.io/aravind-portfolio/)
+
+## Development
+
+```bash
+npm install
+npm run dev
+```
+
+## Deploy
+
+```bash
+npm run deploy
+```
