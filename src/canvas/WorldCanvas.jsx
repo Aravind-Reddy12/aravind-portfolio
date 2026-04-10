@@ -25,11 +25,12 @@ export default function WorldCanvas() {
     return initInput(canvas);
   }, []);
 
-  // Temporary keyboard shortcuts for theme testing (1 = lo-fi, 2 = pixel)
+  // Keyboard shortcuts for theme testing (1 = lo-fi, 2 = pixel, 3 = storybook)
   useEffect(() => {
     function onKeyDown(e) {
       if (e.key === '1') ThemeEngine.setTheme('lofi');
       if (e.key === '2') ThemeEngine.setTheme('pixel');
+      if (e.key === '3') ThemeEngine.setTheme('storybook');
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);

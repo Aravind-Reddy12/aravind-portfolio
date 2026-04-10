@@ -9,7 +9,8 @@
       "Bash(touch src/engine/.gitkeep src/canvas/layers/.gitkeep src/canvas/themes/.gitkeep src/components/.gitkeep src/hooks/.gitkeep src/data/.gitkeep src/utils/.gitkeep)",
       "Bash(npm install:*)",
       "Bash(npm run:*)",
-      "Bash(node --input-type=module)"
+      "Bash(node --input-type=module)",
+      "Bash(npx vite:*)"
     ]
   }
 }

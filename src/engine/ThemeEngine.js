@@ -3,8 +3,9 @@ import { easeInOutCubic } from '../utils/math';
 import { lerpColor, alpha } from '../utils/colors';
 import { lofiTheme } from '../canvas/themes/lofi';
 import { pixelTheme } from '../canvas/themes/pixel';
+import { storybookTheme } from '../canvas/themes/storybook';
 
-const THEMES = { lofi: lofiTheme, pixel: pixelTheme };
+const THEMES = { lofi: lofiTheme, pixel: pixelTheme, storybook: storybookTheme };
 
 let fromTheme   = null;
 let toTheme     = null;
