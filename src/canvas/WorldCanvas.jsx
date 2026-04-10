@@ -31,6 +31,7 @@ export default function WorldCanvas() {
       if (e.key === '1') ThemeEngine.setTheme('lofi');
       if (e.key === '2') ThemeEngine.setTheme('pixel');
       if (e.key === '3') ThemeEngine.setTheme('storybook');
+      if (e.key === '4') ThemeEngine.setTheme('blueprint');
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
