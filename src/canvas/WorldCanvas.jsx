@@ -48,6 +48,10 @@ export default function WorldCanvas() {
     function onPointerUp()   { dragging = false; }
 
     function onPointerMove(e) {
+      if (world.modalOpen) {
+        canvas.style.cursor = 'default';
+        return;
+      }
       const rect    = canvas.getBoundingClientRect();
       const mx      = e.clientX - rect.left;
       const my      = e.clientY - rect.top;
@@ -57,16 +61,22 @@ export default function WorldCanvas() {
     }
 
     function onClick(e) {
+      if (world.modalOpen) return;
       const rect = canvas.getBoundingClientRect();
       const mx   = e.clientX - rect.left;
       const my   = e.clientY - rect.top;
       const hit  = hitTestBuildings(mx, my, world.worldOffset, rect.width, rect.height);
       if (!hit) return;
       if (hit.id === 'toggle') {
-        console.log('Toggle clicked — theme switch coming later');
+        // Toggle building — handled by ThemeToggle UI button
       } else if (hit.section) {
-        world.activeBuilding = hit.id;
-        console.log('Building clicked:', hit.id);
+        // Brake the cyclist, then open modal after a brief pause
+        world.targetSpeed = 0;
+        setTimeout(() => {
+          world.activeBuilding = hit.id;
+          world.modalOpen      = true;
+          notifySubscribers();
+        }, 300);
       }
     }
 

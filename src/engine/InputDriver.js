@@ -8,18 +8,21 @@ export function init(canvas) {
   // — Wheel (desktop) —
   function onWheel(e) {
     e.preventDefault();
+    if (world.modalOpen) return;
     world.targetSpeed = clamp(world.targetSpeed + e.deltaY * 0.01, -1, 1);
     world.hasInteracted = true;
   }
 
   // — Pointer drag (mouse + touch + pen via Pointer Events API) —
   function onPointerDown(e) {
+    if (world.modalOpen) return;
     canvas.setPointerCapture(e.pointerId);
     lastPointerX = e.clientX;
     isDragging = true;
   }
 
   function onPointerMove(e) {
+    if (world.modalOpen) { isDragging = false; return; }
     if (!isDragging || lastPointerX === null) return;
     const dx = e.clientX - lastPointerX;
     lastPointerX = e.clientX;                      // ← update every frame, not just on start
@@ -31,7 +34,7 @@ export function init(canvas) {
     canvas.releasePointerCapture(e.pointerId);
     lastPointerX = null;
     isDragging = false;
-    world.targetSpeed = 0; // release → decelerate to idle
+    if (!world.modalOpen) world.targetSpeed = 0; // release → decelerate to idle
   }
 
   canvas.addEventListener('wheel',        onWheel,       { passive: false });
