@@ -1,0 +1,52 @@
+.hint {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 50;
+
+  padding: 24px 40px;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--color-accent, #f4a261) 15%, transparent);
+  background: color-mix(in srgb, var(--color-bg, #1a1625) 60%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+
+  text-align: center;
+  pointer-events: none;
+
+  opacity: 1;
+  transition: opacity 500ms ease;
+}
+
+.fading {
+  opacity: 0;
+}
+
+.primary {
+  font-family: var(--font-display, sans-serif);
+  font-size: 1.2rem;
+  color: var(--color-text, #e8d5b7);
+  margin: 0;
+  line-height: 1.3;
+}
+
+.secondary {
+  font-family: var(--font-body, sans-serif);
+  font-size: 0.9rem;
+  color: var(--color-text-muted, #8a7a6a);
+  margin: 8px 0 0;
+  line-height: 1.4;
+}
+
+/* Pulse the arrows in the primary text — target the first/last characters via a
+   wrapper approach: the text is static so we animate the whole line with a subtle
+   opacity pulse, and the browser renders it naturally */
+.primary {
+  animation: arrowPulse 2s ease-in-out infinite;
+}
+
+@keyframes arrowPulse {
+  0%,  100% { opacity: 1; }
+  50%        { opacity: 0.65; }
+}

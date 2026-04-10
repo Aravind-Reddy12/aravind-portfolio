@@ -1,0 +1,43 @@
+.hud {
+  position: fixed;
+  bottom: 60px;
+  left: 16px;
+  z-index: 10;
+
+  display: flex;
+  align-items: center;
+  gap: 0;
+
+  font-family: var(--font-body, sans-serif);
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+
+  color: var(--color-text-muted, #8a7a6a);
+  opacity: 0.5;
+  transition: opacity 200ms ease;
+
+  pointer-events: none;
+  user-select: none;
+}
+
+.hud:hover {
+  opacity: 0.85;
+}
+
+.theme,
+.dot,
+.lap {
+  /* inherit */
+}
+
+/* Lap flash — brief accent highlight on mount (triggered by key change) */
+.lap {
+  animation: lapIn 1.2s ease forwards;
+}
+
+@keyframes lapIn {
+  0%   { color: var(--color-accent, #f4a261); }
+  60%  { color: var(--color-accent, #f4a261); }
+  100% { color: var(--color-text-muted, #8a7a6a); }
+}
