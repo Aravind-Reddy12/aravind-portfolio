@@ -9,7 +9,7 @@ import { hitTestBuildings } from './layers/buildings';
 import { BUILDINGS } from '../data/buildings';
 import { worldToScreen, isOnScreen } from '../utils/world';
 import { resolveWeather } from '../engine/WeatherSystem';
-import { lerp } from '../utils/math';
+import { lerp, clamp } from '../utils/math';
 import { WORLD_WIDTH } from '../constants';
 
 const ROAD_Y_RATIO = 0.70;
@@ -106,8 +106,28 @@ export default function WorldCanvas() {
       world.dt  = dt;
       world.fps = 1000 / dt;
 
-      // Smooth speed and advance world
-      world.worldSpeed   = lerp(world.worldSpeed, world.targetSpeed, 0.12);
+      // Scrubber target chasing — overrides normal input speed when active
+      if (world.scrubTarget !== null) {
+        let diff = world.scrubTarget - world.worldOffset;
+        if (diff > WORLD_WIDTH / 2)  diff -= WORLD_WIDTH;
+        if (diff < -WORLD_WIDTH / 2) diff += WORLD_WIDTH;
+        const absDiff = Math.abs(diff);
+        if (absDiff < 15) {
+          world.worldOffset = ((world.scrubTarget % WORLD_WIDTH) + WORLD_WIDTH) % WORLD_WIDTH;
+          world.scrubTarget  = null;
+          world.targetSpeed  = 0;
+          world.worldSpeed   = 0;
+        } else {
+          const chaseSpeed = clamp(diff * 0.08, -5, 5);
+          world.worldSpeed  = chaseSpeed;
+          world.targetSpeed = chaseSpeed;
+        }
+      }
+
+      // Smooth speed and advance world (skipped when scrub chase owns worldSpeed)
+      if (world.scrubTarget === null) {
+        world.worldSpeed = lerp(world.worldSpeed, world.targetSpeed, 0.12);
+      }
       world.worldOffset += world.worldSpeed * (dt / 16.67);
       world.worldOffset  = ((world.worldOffset % WORLD_WIDTH) + WORLD_WIDTH) % WORLD_WIDTH;
       world.dayNightT    = world.worldOffset / WORLD_WIDTH;

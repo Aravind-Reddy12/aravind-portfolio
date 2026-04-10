@@ -30,6 +30,9 @@ export const world = {
   // Loop
   lap:              1,
 
+  // Scrubber
+  scrubTarget:      null,      // target worldOffset set by scrubber, null when idle
+
   // Onboarding
   hasInteracted:    false,     // true after first wheel/drag input
 
