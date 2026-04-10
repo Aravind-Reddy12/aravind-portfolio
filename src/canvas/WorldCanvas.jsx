@@ -25,6 +25,30 @@ export default function WorldCanvas() {
     return initInput(canvas);
   }, []);
 
+  // LOD detection + reduced-motion query
+  useEffect(() => {
+    function detectLOD() {
+      const w = window.innerWidth;
+      if (w < 480) world.canvasLOD = 'low';
+      else if (w < 768) world.canvasLOD = 'medium';
+      else world.canvasLOD = 'high';
+    }
+
+    const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    world.prefersReducedMotion = motionQuery.matches;
+
+    function onMotionChange(e) { world.prefersReducedMotion = e.matches; }
+    motionQuery.addEventListener('change', onMotionChange);
+
+    detectLOD();
+    window.addEventListener('resize', detectLOD);
+
+    return () => {
+      motionQuery.removeEventListener('change', onMotionChange);
+      window.removeEventListener('resize', detectLOD);
+    };
+  }, []);
+
   // Keyboard shortcuts for theme testing (1 = lo-fi, 2 = pixel, 3 = storybook)
   useEffect(() => {
     function onKeyDown(e) {
@@ -162,11 +186,16 @@ export default function WorldCanvas() {
       // Clear
       ctx.clearRect(0, 0, width, height);
 
+      const lod     = world.canvasLOD;        // 'high' | 'medium' | 'low'
+      const reduced = world.prefersReducedMotion;
+
       // Sky + far mountains (combined into drawBackground per architecture §4.1)
       theme.drawBackground(ctx, skyPalette, world.dayNightT, world.worldOffset, width, height);
 
-      // Mid background — hills + trees (0.5× parallax)
-      theme.drawMidground(ctx, world.worldOffset, world.dayNightT, width, height);
+      // Mid background — hills + trees (0.5× parallax) — skip on low LOD
+      if (lod !== 'low') {
+        theme.drawMidground(ctx, world.worldOffset, world.dayNightT, width, height);
+      }
 
       // Road surface + dashes
       theme.drawRoad(ctx, world.worldOffset, width, height);
@@ -183,14 +212,18 @@ export default function WorldCanvas() {
       // Cyclist (fixed screen X)
       theme.drawCyclist(ctx, { world, width, height });
 
-      // Weather particles + lightning + fog
-      theme.drawWeather(ctx, world.weather, world.worldSpeed, dt / 1000, width, height);
+      // Weather particles + lightning + fog — skip on low LOD or reduced-motion
+      if (lod !== 'low' && !reduced) {
+        theme.drawWeather(ctx, world.weather, world.worldSpeed, dt / 1000, width, height);
+      }
 
-      // Foreground — speed lines, dust, debris, vignette (frontmost)
-      theme.drawForeground(ctx, world.worldSpeed, world.worldOffset, world.weather, width, height);
+      // Foreground — speed lines, dust, debris, vignette — skip on medium/low LOD or reduced-motion
+      if (lod === 'high' && !reduced) {
+        theme.drawForeground(ctx, world.worldSpeed, world.worldOffset, world.weather, width, height);
+      }
 
-      // Theme transition overlay (runs during theme switch; lofi init sets T=1 so skipped)
-      if (world.themeTransitionT < 1.0) {
+      // Theme transition overlay — skip when reduced-motion
+      if (!reduced && world.themeTransitionT < 1.0) {
         theme.transitionIn(ctx, world.themeTransitionT, width, height);
       }
 
@@ -204,6 +237,9 @@ export default function WorldCanvas() {
   return (
     <canvas
       ref={canvasRef}
+      id="main-content"
+      role="img"
+      aria-label="An animated cycling world — scroll or drag to ride through illustrated scenes. Click buildings to learn about Aravind."
       style={{
         position: 'fixed',
         top: 0,

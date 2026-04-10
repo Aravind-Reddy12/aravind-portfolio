@@ -96,3 +96,15 @@
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
 }
+
+/* ── Mobile: move to bottom-right to avoid overlap with scrubber thumb ─────── */
+
+@media (max-width: 639px) {
+  .btn {
+    top: auto;
+    bottom: 72px;
+    right: 12px;
+    width: 48px;
+    min-height: 48px;
+  }
+}

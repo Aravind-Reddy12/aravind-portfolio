@@ -41,3 +41,12 @@
   60%  { color: var(--color-accent, #f4a261); }
   100% { color: var(--color-text-muted, #8a7a6a); }
 }
+
+/* ── Mobile: smaller text ─────────────────────────────────────────────────── */
+
+@media (max-width: 639px) {
+  .hud {
+    font-size: 9px;
+    bottom: 52px;
+  }
+}

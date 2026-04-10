@@ -294,3 +294,31 @@
     transform: translateY(0);
   }
 }
+
+/* ── Mobile: larger touch target, slightly higher to clear home indicator ─── */
+
+@media (max-width: 639px) {
+  .trackArea {
+    height: 44px; /* minimum accessible touch target */
+  }
+
+  .thumb {
+    width: 20px;
+    height: 20px;
+  }
+
+  .thumb_lofi {
+    width: 20px;
+    height: 20px;
+  }
+
+  .thumb_pixel {
+    width: 16px;
+    height: 16px;
+  }
+
+  .markerDot {
+    width: 8px;
+    height: 8px;
+  }
+}

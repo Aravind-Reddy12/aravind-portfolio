@@ -50,3 +50,21 @@
   0%,  100% { opacity: 1; }
   50%        { opacity: 0.65; }
 }
+
+/* ── Mobile: smaller padding + font, avoid overlap with scrubber ─────────── */
+
+@media (max-width: 639px) {
+  .hint {
+    padding: 16px 24px;
+    border-radius: 12px;
+    width: calc(100% - 48px);
+  }
+
+  .primary {
+    font-size: 1rem;
+  }
+
+  .secondary {
+    font-size: 0.8rem;
+  }
+}

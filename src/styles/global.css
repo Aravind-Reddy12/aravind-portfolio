@@ -1,4 +1,33 @@
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-html, body, #root { width: 100%; height: 100%; overflow: hidden; }
+html, body, #root { width: 100%; height: 100%; overflow: hidden; overscroll-behavior: none; }
 body { font-family: var(--font-body); color: var(--color-text); background: var(--color-bg); }
 canvas { display: block; touch-action: none; -webkit-user-select: none; user-select: none; }
+
+/* Skip link — visible on focus only */
+.skip-link {
+  position: fixed;
+  top: -100px;
+  left: 16px;
+  z-index: 9999;
+  padding: 8px 16px;
+  background: var(--color-accent, #f4a261);
+  color: var(--color-bg, #1a1625);
+  font-family: var(--font-body, sans-serif);
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 4px;
+  text-decoration: none;
+  transition: top 200ms ease;
+}
+.skip-link:focus {
+  top: 16px;
+}
+
+/* Blanket reduced-motion: kill all animations and transitions */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

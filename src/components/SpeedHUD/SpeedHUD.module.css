@@ -125,3 +125,11 @@
   opacity: 0.4;
   transform: translateX(-50%);
 }
+
+/* ── Mobile: hide speed bar (touch users don't have a meaningful speed) ─── */
+
+@media (max-width: 639px) {
+  .hud {
+    display: none;
+  }
+}
