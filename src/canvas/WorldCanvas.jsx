@@ -91,9 +91,7 @@ export default function WorldCanvas() {
       const my   = e.clientY - rect.top;
       const hit  = hitTestBuildings(mx, my, world.worldOffset, rect.width, rect.height);
       if (!hit) return;
-      if (hit.id === 'toggle') {
-        // Toggle building — handled by ThemeToggle UI button
-      } else if (hit.section) {
+      if (hit.section) {
         // Brake the cyclist, then open modal after a brief pause
         world.targetSpeed = 0;
         setTimeout(() => {

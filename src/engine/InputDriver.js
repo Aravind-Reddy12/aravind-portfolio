@@ -9,7 +9,7 @@ export function init(canvas) {
   function onWheel(e) {
     e.preventDefault();
     if (world.modalOpen) return;
-    world.targetSpeed = clamp(world.targetSpeed + e.deltaY * 0.01, -1, 1);
+    world.targetSpeed = clamp(world.targetSpeed + e.deltaY * 0.02028, -1, 1);
     world.hasInteracted = true;
   }
 
@@ -26,7 +26,7 @@ export function init(canvas) {
     if (!isDragging || lastPointerX === null) return;
     const dx = e.clientX - lastPointerX;
     lastPointerX = e.clientX;                      // ← update every frame, not just on start
-    world.targetSpeed = clamp(-dx * 0.05, -1, 1); // drag left → positive speed → world advances
+    world.targetSpeed = clamp(-dx * 0.26, -1, 1); // drag left → positive speed → world advances
     world.hasInteracted = true;
   }
 

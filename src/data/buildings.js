@@ -4,5 +4,4 @@ export const BUILDINGS = [
   { id: 'projects',   worldX: 2800, width: 240, height: 220, section: 'Projects',   label: 'Garage'  },
   { id: 'hobbies',    worldX: 3800, width: 180, height: 160, section: 'Hobbies',    label: 'Court'   },
   { id: 'contact',    worldX: 4800, width: 160, height: 150, section: 'Contact',    label: 'Café'    },
-  { id: 'toggle',     worldX: 5400, width: 120, height: 140, section: null,          label: 'Toggle'  },
 ];
