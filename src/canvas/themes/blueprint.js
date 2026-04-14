@@ -56,6 +56,16 @@ function crosshair(ctx, cx, cy, r = 5) {
   ctx.stroke();
 }
 
+/** Draw a rotating crosshair at (cx,cy) with arm length r, rotated by angle */
+function rotatingCrosshair(ctx, cx, cy, r, angle) {
+  ctx.beginPath();
+  ctx.moveTo(cx + Math.cos(angle) * r,              cy + Math.sin(angle) * r);
+  ctx.lineTo(cx - Math.cos(angle) * r,              cy - Math.sin(angle) * r);
+  ctx.moveTo(cx + Math.cos(angle + Math.PI / 2) * r, cy + Math.sin(angle + Math.PI / 2) * r);
+  ctx.lineTo(cx - Math.cos(angle + Math.PI / 2) * r, cy - Math.sin(angle + Math.PI / 2) * r);
+  ctx.stroke();
+}
+
 /** Draw an outline-only circle with no fill */
 function circleStroke(ctx, cx, cy, r) {
   ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
@@ -101,6 +111,7 @@ function drawGrid(ctx, width, height, spacing = 40) {
 const BP_STARS = [];
 let bpStarsSeeded = false;
 let bpPedalAngle  = 0;
+let bpWheelAngle  = 0;
 let bpFlashTimer  = 0;
 
 const CONSTELLATION_EDGES = [
@@ -725,6 +736,7 @@ export const blueprintTheme = {
     const CRANK   = 12;
 
     bpPedalAngle += speed * 0.07;
+    bpWheelAngle += speed * 0.15;
 
     // Mirror from lofi cyclist geometry
     const leanAngle = speed > 0.3
@@ -782,8 +794,8 @@ export const blueprintTheme = {
     circleStroke(ctx, rearWheelX, wheelY, WHEEL_R);
     circleStroke(ctx, frontWheelX, wheelY, WHEEL_R);
     ctx.strokeStyle = THIN; ctx.lineWidth = 0.8;
-    crosshair(ctx, rearWheelX,  wheelY, WHEEL_R);
-    crosshair(ctx, frontWheelX, wheelY, WHEEL_R);
+    rotatingCrosshair(ctx, rearWheelX,  wheelY, WHEEL_R, bpWheelAngle);
+    rotatingCrosshair(ctx, frontWheelX, wheelY, WHEEL_R, bpWheelAngle);
 
     // Handlebar
     ctx.strokeStyle = MAIN; ctx.lineWidth = 1.5;

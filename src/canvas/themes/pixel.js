@@ -455,109 +455,152 @@ export const pixelTheme = {
     const norm  = ((pixelPedalAngle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
     const frame = Math.floor(norm / (Math.PI * 2) * 4) % 4;
 
-    const cx      = px(width * 0.33);
-    const groundY = px(height * 0.70);
-    const wheelY  = groundY + 14;                           // wheel centres touch road
-    const lean    = speed > 0.6 ? 8 : speed > 0.3 ? 4 : 0;
+    const U = 6; // pixel unit — 6px grid for chunky look at proper scale
 
-    // ── Key geometry ──────────────────────────────────────────────────────────
-    const rearWL  = cx - 20;           // rear wheel left edge
-    const frontWL = cx + 12 + lean;    // front wheel left edge
-    const rearCX  = rearWL  + 4;       // rear wheel centre x
-    const frontCX = frontWL + 4;       // front wheel centre x
-    const bbX     = cx - 2;            // bottom bracket (pedal pivot)
-    const bbY     = wheelY - 4;
-    const seatX   = cx - 10 + lean;    // seat top
-    const seatY   = wheelY - 16;
-    const htX     = cx + 10 + lean;    // head-tube top
-    const htY     = wheelY - 12;
+    const cx      = Math.round(width  * 0.33 / U) * U;
+    const groundY = Math.round(height * 0.70 / U) * U;
+    const lean    = speed > 0.6 ? 2 * U : speed > 0.3 ? U : 0;
 
-    // ── Frame lines (yellow, 2px, square caps) ────────────────────────────────
+    // Geometry matching lo-fi exactly (WHEEL_R=18, wheelY = groundY+14)
+    const wheelR   = 18;
+    const wheelY   = groundY + wheelR - 4;   // groundY + 14
+    const rearCX   = cx - 20;
+    const frontCX  = cx + 24 + lean;
+    const bbX      = cx + 2;
+    const bbY      = groundY;
+    const seatX    = bbX - 8 - Math.round(lean / 2);
+    const seatY    = bbY - 16;
+    const htX      = frontCX - 6;
+    const htY      = Math.round(wheelY - wheelR * 1.8);
+
+    // ── Frame lines (yellow, square caps) ─────────────────────────────────────
     ctx.strokeStyle = '#ffcc00';
     ctx.lineWidth   = 2;
     ctx.lineCap     = 'square';
     function line(ax, ay, bx, by) {
       ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
     }
-    line(rearCX, wheelY, bbX,   bbY);   // chain stay
-    line(bbX,    bbY,    seatX, seatY); // seat tube
-    line(bbX,    bbY,    htX,   htY);   // down tube
-    line(htX,    htY,    frontCX, wheelY); // fork
-    line(seatX,  seatY,  rearCX, wheelY);  // seat stay
+    line(rearCX, wheelY, bbX,      bbY);       // chain stay
+    line(bbX,    bbY,    seatX,    seatY);     // seat tube
+    line(bbX,    bbY,    htX,      htY);       // down tube
+    line(htX,    htY,    frontCX,  wheelY);   // fork
+    line(seatX,  seatY,  rearCX,   wheelY);   // seat stay
+    line(seatX,  seatY,  htX,      htY);      // top tube
 
-    // Handlebars — 6×2 pixel rect at head-tube top
-    ctx.fillStyle = '#aaaaaa';
-    ctx.fillRect(htX - 1, htY - 5, 6, 2);
+    // Saddle — 3U wide flat rect
+    ctx.fillStyle = '#cccccc';
+    ctx.fillRect(seatX - U, seatY - 2, 3 * U, 4);
     ctx.strokeStyle = '#000'; ctx.lineWidth = 1;
-    ctx.strokeRect(htX - 0.5, htY - 4.5, 5, 1);
+    ctx.strokeRect(seatX - U + 0.5, seatY - 1.5, 3 * U - 1, 3);
 
-    // ── Wheels — 8×8 grey squares, black outline ─────────────────────────────
-    pixelRect(ctx, rearWL,  wheelY - 4, 8, 8, '#aaaaaa');
-    pixelRect(ctx, frontWL, wheelY - 4, 8, 8, '#aaaaaa');
+    // Handlebar — T shape at head-tube top
+    ctx.fillStyle = '#aaaaaa';
+    ctx.fillRect(htX - 2, htY - U, U + 2, U / 2);
 
-    // ── Rider sitting on the seat ─────────────────────────────────────────────
-    // Hip is pinned to the seat top
-    const hipX = seatX - 1;
+    // ── Wheels — chunky circles with 4-spoke rotation animation ───────────────
+    // Two frames: spokes alternate between + and × (0° and 45°) for rotation feel
+    const wheelFrame = Math.floor(world.worldOffset / 12) % 2;
+    const spokeAngle = wheelFrame * (Math.PI / 4);
+
+    function drawPixelWheel(wcx, wcy) {
+      // Rim — thick circle stroke
+      ctx.strokeStyle = '#aaaaaa';
+      ctx.lineWidth   = 4;
+      ctx.lineCap     = 'round';
+      ctx.beginPath();
+      ctx.arc(wcx, wcy, wheelR, 0, Math.PI * 2);
+      ctx.stroke();
+      // 4 spokes
+      ctx.strokeStyle = '#888888';
+      ctx.lineWidth   = 2;
+      ctx.lineCap     = 'square';
+      for (let s = 0; s < 4; s++) {
+        const a = spokeAngle + s * (Math.PI / 2);
+        ctx.beginPath();
+        ctx.moveTo(wcx, wcy);
+        ctx.lineTo(wcx + Math.cos(a) * (wheelR - 3), wcy + Math.sin(a) * (wheelR - 3));
+        ctx.stroke();
+      }
+      // Hub — small square
+      ctx.fillStyle = '#cccccc';
+      ctx.fillRect(wcx - 3, wcy - 3, U, U);
+      ctx.strokeStyle = '#000'; ctx.lineWidth = 1;
+      ctx.strokeRect(wcx - 2.5, wcy - 2.5, U - 1, U - 1);
+    }
+
+    drawPixelWheel(rearCX,  wheelY);
+    drawPixelWheel(frontCX, wheelY);
+
+    // ── Rider — 6px-grid body parts ───────────────────────────────────────────
+    const hipX = Math.round(seatX / U) * U;
     const hipY = seatY;
 
-    // Leg animation: shin length varies per frame (thigh is always 8px down from hip)
-    // [left shin height, right shin height]  — max 8 = foot at pedal level
-    const LEG_FRAMES = [
-      [8, 4],   // frame 0: left leg down,  right leg up
-      [6, 6],   // frame 1: both mid
-      [4, 8],   // frame 2: left leg up,    right leg down
-      [6, 6],   // frame 3: both mid
+    const thigh = 2 * U; // 12px
+    const kneeY = hipY + thigh;
+
+    // [left shin, right shin] per frame
+    const SHIN_FRAMES = [
+      [3 * U, 1 * U],  // frame 0: left leg down, right up
+      [2 * U, 2 * U],  // frame 1: both mid
+      [1 * U, 3 * U],  // frame 2: left up, right down
+      [2 * U, 2 * U],  // frame 3: both mid
     ];
-    const [lShin, rShin] = LEG_FRAMES[frame];
-    const kneeY = hipY + 8;
+    const [lShin, rShin] = SHIN_FRAMES[frame];
 
     // Right leg (behind — slightly faded)
     ctx.globalAlpha = 0.65;
-    ctx.fillStyle = '#222244';                           // shorts — thigh
-    ctx.fillRect(hipX + 2, hipY,    4, 8);
+    ctx.fillStyle = '#222244'; // thigh (shorts)
+    ctx.fillRect(hipX + U, hipY, U, thigh);
     ctx.strokeStyle = '#000'; ctx.lineWidth = 1;
-    ctx.strokeRect(hipX + 2.5, hipY + 0.5, 3, 7);
-    ctx.fillStyle = '#e8b88a';                           // skin — shin
-    ctx.fillRect(hipX + 2, kneeY, 4, rShin);
-    ctx.strokeRect(hipX + 2.5, kneeY + 0.5, 3, rShin - 1);
+    ctx.strokeRect(hipX + U + 0.5, hipY + 0.5, U - 1, thigh - 1);
+    ctx.fillStyle = '#e8b88a'; // shin (skin)
+    ctx.fillRect(hipX + U, kneeY, U, rShin);
+    if (rShin > 0) ctx.strokeRect(hipX + U + 0.5, kneeY + 0.5, U - 1, rShin - 1);
     ctx.globalAlpha = 1;
 
     // Left leg (front)
     ctx.fillStyle = '#222244';
-    ctx.fillRect(hipX - 2, hipY,    4, 8);
+    ctx.fillRect(hipX - U, hipY, U, thigh);
     ctx.strokeStyle = '#000'; ctx.lineWidth = 1;
-    ctx.strokeRect(hipX - 1.5, hipY + 0.5, 3, 7);
+    ctx.strokeRect(hipX - U + 0.5, hipY + 0.5, U - 1, thigh - 1);
     ctx.fillStyle = '#e8b88a';
-    ctx.fillRect(hipX - 2, kneeY, 4, lShin);
-    ctx.strokeRect(hipX - 1.5, kneeY + 0.5, 3, lShin - 1);
+    ctx.fillRect(hipX - U, kneeY, U, lShin);
+    if (lShin > 0) ctx.strokeRect(hipX - U + 0.5, kneeY + 0.5, U - 1, lShin - 1);
 
-    // Torso — 6×8 jersey red with black outline
-    const torsoX = hipX - 3;
-    const torsoY = hipY - 8;
+    // Torso — 3U wide × 4U tall jersey
+    const torsoW = 3 * U;
+    const torsoH = 4 * U;
+    const torsoX = hipX - U;
+    const torsoY = hipY - torsoH;
     ctx.fillStyle = '#ff4444';
-    ctx.fillRect(torsoX, torsoY, 6, 8);
+    ctx.fillRect(torsoX, torsoY, torsoW, torsoH);
     ctx.strokeStyle = '#000'; ctx.lineWidth = 1;
-    ctx.strokeRect(torsoX + 0.5, torsoY + 0.5, 5, 7);
+    ctx.strokeRect(torsoX + 0.5, torsoY + 0.5, torsoW - 1, torsoH - 1);
 
-    // Arm — 2px tall skin rect from torso to handlebar
+    // Arm — horizontal skin rect from torso shoulder to handlebar
     ctx.fillStyle = '#e8b88a';
-    const armStartX = torsoX + 5;
+    const armStartX = torsoX + torsoW;
     const armEndX   = htX + 2;
-    ctx.fillRect(armStartX, torsoY + 2, armEndX - armStartX, 2);
+    if (armEndX > armStartX) {
+      ctx.fillRect(armStartX, torsoY + U, armEndX - armStartX, U);
+    }
 
-    // Head — 6×6 skin with black outline
+    // Head — 3U × 3U
+    const headW = 3 * U;
+    const headH = 3 * U;
     const headX = torsoX;
-    const headY = torsoY - 6;
+    const headY = torsoY - headH;
     ctx.fillStyle = '#e8b88a';
-    ctx.fillRect(headX, headY, 6, 6);
+    ctx.fillRect(headX, headY, headW, headH);
     ctx.strokeStyle = '#000'; ctx.lineWidth = 1;
-    ctx.strokeRect(headX + 0.5, headY + 0.5, 5, 5);
+    ctx.strokeRect(headX + 0.5, headY + 0.5, headW - 1, headH - 1);
 
-    // Helmet — 8×4 jersey red cap, black outline
+    // Helmet — 4U wide × 1.5U tall jersey red cap
+    const helmetH = Math.round(U * 1.5);
     ctx.fillStyle = '#ff4444';
-    ctx.fillRect(headX - 1, headY - 3, 8, 4);
+    ctx.fillRect(headX - U / 2, headY - U, headW + U, helmetH);
     ctx.strokeStyle = '#000'; ctx.lineWidth = 1;
-    ctx.strokeRect(headX - 0.5, headY - 2.5, 7, 3);
+    ctx.strokeRect(headX - U / 2 + 0.5, headY - U + 0.5, headW + U - 1, helmetH - 1);
   },
 
   drawWeather(ctx, weather, worldSpeed, dt, width, height) {

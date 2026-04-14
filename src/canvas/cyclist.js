@@ -27,6 +27,7 @@ const COL_SKIN    = '#e8b88a';
 
 // ─── Module state ─────────────────────────────────────────────────────────────
 let pedalAngle  = 0;
+let wheelAngle  = 0; // wheel rotation angle (radians)
 let leanAngle   = 0; // current smoothed lean (radians, 0 = upright)
 
 // ─── IK Solver ────────────────────────────────────────────────────────────────
@@ -54,21 +55,26 @@ function drawLine(ctx, a, b, color, width) {
   ctx.stroke();
 }
 
-function drawWheel(ctx, cx, cy, r, color) {
+function drawWheel(ctx, cx, cy, r, color, angle) {
   ctx.strokeStyle = color;
   ctx.lineWidth   = 2;
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.stroke();
-  // Spokes
+  // Rotating spokes
   ctx.lineWidth = 1;
   for (let i = 0; i < SPOKE_COUNT; i++) {
-    const a = (i / SPOKE_COUNT) * Math.PI * 2;
+    const a = angle + (i / SPOKE_COUNT) * Math.PI * 2;
     ctx.beginPath();
     ctx.moveTo(cx, cy);
     ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
     ctx.stroke();
   }
+  // Hub
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 // ─── Main draw ────────────────────────────────────────────────────────────────
@@ -76,8 +82,9 @@ export const cyclist = {
   draw(ctx, world, width, height) {
     const speed = world.worldSpeed;
 
-    // Update pedal rotation
+    // Update pedal and wheel rotation
     pedalAngle += speed * PEDAL_RATIO;
+    wheelAngle += speed * 0.15;
 
     // Target lean: forward when fast, back when reversing
     const targetLean = speed > 0.3
@@ -157,7 +164,7 @@ export const cyclist = {
     ctx.globalAlpha = 1;
 
     // Rear wheel
-    drawWheel(ctx, rearWheelX, wheelY, WHEEL_R, COL_WHEEL);
+    drawWheel(ctx, rearWheelX, wheelY, WHEEL_R, COL_WHEEL, wheelAngle);
 
     // Bicycle frame
     ctx.strokeStyle = COL_FRAME;
@@ -212,7 +219,7 @@ export const cyclist = {
     ctx.stroke();
 
     // Front wheel
-    drawWheel(ctx, frontWheelX, wheelY, WHEEL_R, COL_WHEEL);
+    drawWheel(ctx, frontWheelX, wheelY, WHEEL_R, COL_WHEEL, wheelAngle);
 
     // Left leg (front, fully opaque)
     drawLine(ctx, hip, leftKnee,  COL_SHORTS, 5);
