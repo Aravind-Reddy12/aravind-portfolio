@@ -13,6 +13,10 @@ export function checkWrap(worldOffset) {
 
 function onWrap() {
   world.lap++;
+  if (world.lap === 2) {
+    world.autoTourActive = false;
+    world.autoShownBuildings.clear();
+  }
   resetWeather();
   notifySubscribers();
 }

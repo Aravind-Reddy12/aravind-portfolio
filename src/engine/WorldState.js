@@ -36,6 +36,11 @@ export const world = {
   // Onboarding
   hasInteracted:    false,     // true after first wheel/drag input
 
+  // Auto-tour (lap 1 guided mode)
+  autoTourActive:     true,       // becomes false after lap 1 completes
+  autoShownBuildings: new Set(),  // building ids already auto-shown this lap
+  preModalSpeed:      0,          // remembers targetSpeed when modal opened
+
   // Performance
   dt:               16.67,
   fps:              60,

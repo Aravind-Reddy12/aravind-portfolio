@@ -92,8 +92,9 @@ export default function WorldCanvas() {
       const hit  = hitTestBuildings(mx, my, world.worldOffset, rect.width, rect.height);
       if (!hit) return;
       if (hit.section) {
-        // Brake the cyclist, then open modal after a brief pause
-        world.targetSpeed = 0;
+        // Save speed, brake, then open modal after a brief pause
+        world.preModalSpeed = world.targetSpeed;
+        world.targetSpeed   = 0;
         setTimeout(() => {
           world.activeBuilding = hit.id;
           world.modalOpen      = true;
@@ -172,6 +173,29 @@ export default function WorldCanvas() {
 
       // Advance theme transition
       ThemeEngine.tick(dt / 1000);
+
+      // Auto-tour: lap 1 — auto-open modal when cyclist reaches each building
+      if (world.autoTourActive && world.lap === 1 && !world.modalOpen && world.scrubTarget === null) {
+        const cyclistScreenX = width * 0.33;
+        for (const b of BUILDINGS) {
+          if (!b.section) continue;
+          if (world.autoShownBuildings.has(b.id)) continue;
+          const bScreenX = worldToScreen(b.worldX, world.worldOffset, width);
+          const bCenter  = bScreenX + b.width / 2;
+          if (Math.abs(bCenter - cyclistScreenX) < 30) {
+            world.autoShownBuildings.add(b.id);
+            world.preModalSpeed = world.targetSpeed;
+            world.targetSpeed   = 0;
+            const bid = b.id;
+            setTimeout(() => {
+              world.activeBuilding = bid;
+              world.modalOpen      = true;
+              notifySubscribers();
+            }, 300);
+            break;
+          }
+        }
+      }
 
       // Notify React subscribers
       notifySubscribers();

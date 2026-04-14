@@ -19,6 +19,10 @@ const SECTIONS = {
 function closeModal() {
   world.modalOpen      = false;
   world.activeBuilding = null;
+  if (world.preModalSpeed !== 0) {
+    world.targetSpeed   = world.preModalSpeed;
+    world.preModalSpeed = 0;
+  }
   notifySubscribers();
 }
 

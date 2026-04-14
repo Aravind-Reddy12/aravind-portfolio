@@ -1,17 +1,22 @@
-import { useState, useRef, useCallback } from 'react';
-import { world } from '../../engine/WorldState';
+import { useRef, useCallback, useMemo } from 'react';
+import { world, notifySubscribers } from '../../engine/WorldState';
 import { useWorldState } from '../../hooks/useWorldState';
 import { WORLD_WIDTH } from '../../constants';
 import { BUILDINGS } from '../../data/buildings';
+import { wrappedDist } from '../../utils/world';
+import { CYCLIST_SCREEN_X_RATIO } from '../../canvas/cyclist';
 import styles from './WorldScrubber.module.css';
 
-// Building markers (exclude toggle — no section)
+// Markers placed at building CENTRES so the thumb aligns when the cyclist is on a building.
+// cyclist world pos = worldOffset + viewport * CYCLIST_SCREEN_X_RATIO
+// cyclist is centred on building when: worldOffset + cyclistScreenX = building.worldX + building.width/2
 const MARKERS = BUILDINGS
   .filter(b => b.section)
   .map(b => ({
-    id:    b.id,
-    label: b.section,
-    pct:   b.worldX / WORLD_WIDTH,
+    id:      b.id,
+    label:   b.section,
+    centerX: b.worldX + b.width / 2,
+    pct:     (b.worldX + b.width / 2) / WORLD_WIDTH,
   }));
 
 // ─── Thumb ────────────────────────────────────────────────────────────────────
@@ -42,29 +47,60 @@ function Thumb({ pct, theme }) {
 
 // ─── BuildingMarker ───────────────────────────────────────────────────────────
 
-function BuildingMarker({ marker }) {
-  const [hovered, setHovered] = useState(false);
+function BuildingMarker({ marker, isCurrent }) {
+  function handlePointerDown(e) {
+    e.stopPropagation();
+  }
+
+  function handleClick(e) {
+    e.stopPropagation();
+    // Put the cyclist at the building centre:
+    //   worldOffset + cyclistScreenX = marker.centerX
+    //   worldOffset = marker.centerX - cyclistScreenX
+    const cyclistScreenX = window.innerWidth * CYCLIST_SCREEN_X_RATIO;
+    world.scrubTarget = ((marker.centerX - cyclistScreenX) % WORLD_WIDTH + WORLD_WIDTH) % WORLD_WIDTH;
+    notifySubscribers();
+  }
+
   return (
-    <div
-      className={styles.marker}
+    <button
+      className={`${styles.marker} ${isCurrent ? styles.markerCurrent : ''}`}
       style={{ left: `${marker.pct * 100}%` }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      aria-hidden="true"
+      onPointerDown={handlePointerDown}
+      onClick={handleClick}
+      aria-label={`Navigate to ${marker.label}`}
     >
-      <div className={styles.markerDot} />
-      {hovered && (
-        <div className={styles.markerTooltip}>{marker.label}</div>
-      )}
-    </div>
+      <span className={styles.markerLabel}>{marker.label}</span>
+      <span className={styles.markerDot} />
+    </button>
   );
 }
 
 // ─── WorldScrubber ────────────────────────────────────────────────────────────
 
 export default function WorldScrubber() {
-  const theme = useWorldState(s => s.theme);
-  const pct   = useWorldState(s => s.worldOffset / WORLD_WIDTH);
+  const theme       = useWorldState(s => s.theme);
+  const worldOffset = useWorldState(s => s.worldOffset);
+
+  // Cyclist's effective world position = worldOffset + its fixed screen X in world units.
+  // Screen pixels and world units share the same scale (1:1), so no conversion needed.
+  const cyclistWorldX = useMemo(() => {
+    const cyclistScreenX = window.innerWidth * CYCLIST_SCREEN_X_RATIO;
+    return ((worldOffset + cyclistScreenX) % WORLD_WIDTH + WORLD_WIDTH) % WORLD_WIDTH;
+  }, [worldOffset]);
+
+  const thumbPct = cyclistWorldX / WORLD_WIDTH;
+
+  // Highlight the marker whose centre is closest to the cyclist
+  const currentBuildingId = useMemo(() => {
+    let minDist = Infinity;
+    let currentId = null;
+    for (const m of MARKERS) {
+      const d = wrappedDist(m.centerX, cyclistWorldX);
+      if (d < minDist) { minDist = d; currentId = m.id; }
+    }
+    return currentId;
+  }, [cyclistWorldX]);
 
   const trackRef    = useRef(null);
   const draggingRef = useRef(false);
@@ -75,8 +111,12 @@ export default function WorldScrubber() {
     return Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
   }, []);
 
+  // fraction = cyclistWorldX / WORLD_WIDTH (where the cyclist should end up on the track)
+  // worldOffset = cyclistWorldX - cyclistScreenX
   const setTarget = useCallback((fraction) => {
-    world.scrubTarget = fraction * WORLD_WIDTH;
+    const cyclistScreenX    = window.innerWidth * CYCLIST_SCREEN_X_RATIO;
+    const targetCyclistWorldX = fraction * WORLD_WIDTH;
+    world.scrubTarget = ((targetCyclistWorldX - cyclistScreenX) % WORLD_WIDTH + WORLD_WIDTH) % WORLD_WIDTH;
   }, []);
 
   const onPointerDown = useCallback((e) => {
@@ -98,11 +138,11 @@ export default function WorldScrubber() {
     if (!draggingRef.current) return;
     draggingRef.current = false;
     trackRef.current?.releasePointerCapture(e.pointerId);
-    // scrubTarget stays — world coasts to final position
   }, []);
 
   const onKeyDown = useCallback((e) => {
     if (e.key === 'ArrowRight') {
+      const cyclistScreenX = window.innerWidth * CYCLIST_SCREEN_X_RATIO;
       world.scrubTarget = ((world.worldOffset + WORLD_WIDTH * 0.05) % WORLD_WIDTH);
       e.preventDefault();
     } else if (e.key === 'ArrowLeft') {
@@ -111,7 +151,7 @@ export default function WorldScrubber() {
     }
   }, []);
 
-  const ariaPct = Math.round(pct * 100);
+  const ariaPct = Math.round(thumbPct * 100);
 
   return (
     <div className={`${styles.root} ${styles[theme] ?? ''}`} data-theme={theme}>
@@ -146,10 +186,20 @@ export default function WorldScrubber() {
         onPointerUp={onPointerUp}
         onKeyDown={onKeyDown}
       >
+        {/* Building markers — float above the track */}
+        <div className={styles.markers}>
+          {MARKERS.map(m => (
+            <BuildingMarker
+              key={m.id}
+              marker={m}
+              isCurrent={m.id === currentBuildingId}
+            />
+          ))}
+        </div>
+
         {/* Visual track */}
         <div className={styles.track} aria-hidden="true">
 
-          {/* Storybook: SVG wavy path overlaid on the track */}
           {theme === 'storybook' && (
             <svg
               className={styles.wavySvg}
@@ -167,7 +217,6 @@ export default function WorldScrubber() {
             </svg>
           )}
 
-          {/* Blueprint ruler tick marks */}
           {theme === 'blueprint' && (
             <div className={styles.rulerTicks} aria-hidden="true">
               {Array.from({ length: 25 }, (_, i) => (
@@ -179,15 +228,10 @@ export default function WorldScrubber() {
               ))}
             </div>
           )}
-
-          {/* Building position markers */}
-          {MARKERS.map(m => (
-            <BuildingMarker key={m.id} marker={m} />
-          ))}
         </div>
 
         {/* Draggable thumb */}
-        <Thumb pct={pct} theme={theme} />
+        <Thumb pct={thumbPct} theme={theme} />
       </div>
     </div>
   );

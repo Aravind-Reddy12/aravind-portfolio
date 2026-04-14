@@ -1,7 +1,8 @@
 import { lerp, clamp } from '../utils/math';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
-const SCREEN_X_RATIO = 0.33; // 33% from left
+export const CYCLIST_SCREEN_X_RATIO = 0.33; // 33% from left — exported so scrubber can import it
+const SCREEN_X_RATIO = CYCLIST_SCREEN_X_RATIO;
 const ROAD_Y_RATIO   = 0.70; // same as road.js ground start
 
 const WHEEL_R    = 18;

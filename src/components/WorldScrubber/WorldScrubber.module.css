@@ -165,56 +165,75 @@
 
 /* ─── Building markers ────────────────────────────────────────────────────────── */
 
+.markers {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  height: 36px;
+  pointer-events: none; /* container passes through; buttons inside catch events */
+}
+
 .marker {
   position: absolute;
-  top: 50%;
-  transform: translate(-50%, -50%);
+  bottom: 0;
+  transform: translateX(-50%);
   display: flex;
   flex-direction: column;
   align-items: center;
-  pointer-events: all;
-  cursor: default;
+  gap: 4px;
+  background: none;
+  border: none;
+  padding: 4px 6px;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: transform var(--duration-fast, 150ms);
+}
+
+.markerLabel {
+  font-family: var(--font-body, sans-serif);
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--color-text-muted, #8a7a6a);
+  opacity: 0.7;
+  transition: opacity var(--duration-fast, 150ms), color var(--duration-fast, 150ms);
+  white-space: nowrap;
+  line-height: 1;
 }
 
 .markerDot {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: var(--color-accent, #f4a261);
-  opacity: 0.35;
-  transition: opacity 150ms ease, transform 150ms ease;
+  opacity: 0.55;
+  transition: opacity var(--duration-fast, 150ms), transform var(--duration-fast, 150ms);
+  flex-shrink: 0;
 }
 
-.marker:hover .markerDot {
-  opacity: 0.85;
-  transform: scale(1.4);
+.marker:hover .markerLabel,
+.marker:focus-visible .markerLabel {
+  opacity: 1;
+  color: var(--color-accent, #f4a261);
 }
 
-.pixel .markerDot {
-  border-radius: 0;
+.marker:hover .markerDot,
+.marker:focus-visible .markerDot {
+  opacity: 1;
+  transform: scale(1.35);
 }
 
-.markerTooltip {
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
-  background: color-mix(in srgb, var(--color-surface, #2a2035) 92%, transparent);
-  color: var(--color-text, #e8d5b7);
-  font-family: var(--font-body, sans-serif);
-  font-size: 9px;
-  padding: 3px 6px;
-  border-radius: 4px;
-  white-space: nowrap;
-  pointer-events: none;
-  border: 1px solid color-mix(in srgb, var(--color-accent, #f4a261) 25%, transparent);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+.markerCurrent .markerLabel {
+  opacity: 1;
+  color: var(--color-accent, #f4a261);
+  font-weight: bold;
 }
 
-.pixel .markerTooltip {
-  border-radius: 0;
-  font-family: var(--font-body, monospace);
+.markerCurrent .markerDot {
+  opacity: 1;
+  transform: scale(1.35);
+  box-shadow: 0 0 8px var(--color-accent, #f4a261);
 }
 
 /* ─── Thumb ───────────────────────────────────────────────────────────────────── */
@@ -295,6 +314,23 @@
   }
 }
 
+/* ── Pixel theme: blocky square markers ──────────────────────────────────────── */
+
+[data-theme='pixel'] .markerDot {
+  border-radius: 0;
+}
+
+/* ── Blueprint theme: outline-only markers ───────────────────────────────────── */
+
+[data-theme='blueprint'] .markerDot {
+  background: transparent;
+  border: 1.5px solid var(--color-accent, #4a9eff);
+}
+
+[data-theme='blueprint'] .markerCurrent .markerDot {
+  background: transparent;
+}
+
 /* ── Mobile: larger touch target, slightly higher to clear home indicator ─── */
 
 @media (max-width: 639px) {
@@ -317,8 +353,12 @@
     height: 16px;
   }
 
-  .markerDot {
-    width: 8px;
-    height: 8px;
+  /* On mobile, hide non-current labels to save space */
+  .marker:not(.markerCurrent) .markerLabel {
+    display: none;
+  }
+
+  .markerLabel {
+    font-size: 8px;
   }
 }
